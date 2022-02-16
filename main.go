@@ -15,7 +15,9 @@ limitations under the License.
 */
 package main
 
-import "github.com/liloew/altgvn/cmd"
+import (
+	"github.com/liloew/altgvn/cmd"
+)
 
 func main() {
 	cmd.Execute()
