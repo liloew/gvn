@@ -16,9 +16,16 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"strings"
 
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/liloew/altgvn/p2p"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // upCmd represents the up command
@@ -33,19 +40,114 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("up called")
+		upCommand(cmd)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(upCmd)
+	upCmd.Flags().StringP("peers", "", "", "the peers id, splited by comma")
+}
 
-	// Here you will define your flags and configuration settings.
+func upCommand(cmd *cobra.Command) {
+	config := Config{}
+	if err := viper.Unmarshal(&config); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+		}).Panic("Unmarshal config file error")
+	}
+	host, err := p2p.NewPeer(config.PriKey)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR":      err,
+			"PrivateKey": config.PriKey,
+		}).Panic("Create peer error")
+	}
+	logrus.WithFields(logrus.Fields{
+		"ID":    host.ID().Pretty(),
+		"Addrs": host.Addrs(),
+	}).Info("Peer info")
+	zone := viper.GetString("protocol")
+	host.SetStreamHandler(protocol.ID(zone), func(stream network.Stream) {
+		logrus.WithFields(logrus.Fields{
+			"LocalPeer":  stream.Conn().LocalPeer(),
+			"RemotePeer": stream.Conn().RemotePeer(),
+			"LocalAddr":  stream.Conn().LocalMultiaddr(),
+			"RemoteAddr": stream.Conn().RemoteMultiaddr(),
+			"Protocol":   stream.Protocol(),
+		}).Info("handler new stream")
+		// TODO: 处理特定消息
+		rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
+		go readData(rw)
+		go writeData(rw)
+	})
+	// TODO: MODECLIENT ?
+	var bootstraps []string
+	if MODE(viper.GetUint("mode")) == MODECLIENT {
+		// start dht in server mode
+		bootstraps = viper.GetStringSlice("server")
+	} else {
+		// DHT connect to self
+		for _, addr := range host.Addrs() {
+			bootstraps = append(bootstraps, fmt.Sprintf("%s/p2p/%s", addr.String(), host.ID().Pretty()))
+		}
+	}
+	p2p.NewDHT(host, bootstraps)
+	// TODO: find peers
+	// peerIds := p2p.FindPeerIds()
+	peerIds, _ := cmd.Flags().GetString("peers")
+	logrus.WithFields(logrus.Fields{
+		"PEERS": peerIds,
+	}).Info("")
+	streams := p2p.NewStreams(host, zone, strings.Split(peerIds, ","))
+	// BEGIN: DEBUG
+	for _, peerId := range strings.Split(peerIds, ",") {
+		if stream, ok := streams[peerId]; ok {
+			for i := 0; i < 3; i++ {
+				// read until new line
+				bytes := []byte(fmt.Sprintf("%d", i))
+				bytes = append(bytes, "\n"...)
+				stream.Write(bytes)
+			}
+		}
+	}
+	// END: DEBUG
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// upCmd.PersistentFlags().String("foo", "", "A help for foo")
+	c := make(chan int, 1)
+	<-c
+}
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// upCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+func readData(rw *bufio.ReadWriter) {
+	logrus.WithFields(logrus.Fields{
+		"": "",
+	}).Info("READY TO READ DATA")
+	// bytes, err := rw.ReadBytes('\n')
+	for {
+		bytes, isPrefix, err := rw.ReadLine()
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"ERROR":  err,
+				"PREFIX": isPrefix,
+				"BYTES":  bytes,
+			}).Error("READY TO READ DATA")
+			return
+		}
+		logrus.WithFields(logrus.Fields{
+			"PREFIX": isPrefix,
+			"bytes":  bytes,
+			"data":   string(bytes),
+		}).Info("READY TO READ DATA")
+	}
+}
+
+func writeData(rw *bufio.ReadWriter) {
+	logrus.WithFields(logrus.Fields{
+		"": "",
+	}).Info("READY TO WRITE DATA")
+	for {
+		// TODO:
+		if _, err := rw.Write(nil); err != nil {
+			// TODO:
+		}
+	}
 }

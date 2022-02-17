@@ -42,11 +42,20 @@ type Dev struct {
 type Config struct {
 	Id     string `yaml:"id,omitempty"`
 	Mode   MODE   `yaml:"mode,omitempty"`
+	Server string `yaml:"server,omitempty"`
 	Subnet string `yaml:"subnet,omitempty"`
+	Protol string `yaml:"protocol"`
 	PriKey string `yaml:"priKey,omitempty"`
 	PubKey string `yaml:"pubKey,omitempty"`
 	Devs   []Dev  `yaml:"devs,omitempty"`
 }
+
+// // TODO:
+// func (c *Config) IsZero() bool {
+// 	if c.Mode == MODECLIENT {
+// 	}
+// 	return false
+// }
 
 // initCmd represents the init command
 var (
@@ -94,6 +103,7 @@ func init() {
 	initCmd.Flags().BoolP("server", "s", false, "server mode")
 	// availabe in server mode
 	initCmd.Flags().StringP("subnet", "", "192.168.1.1/24", "the CIDR subnet used in")
+	initCmd.Flags().StringP("protocol", "p", "/gvn/1.0.0", "the protocol support currently")
 }
 
 // parse the config object
@@ -117,5 +127,11 @@ func parseConfig(cmd cobra.Command, config *Config) {
 		config.Mode = MODESERVER
 		subnet, _ := cmd.Flags().GetString("subnet")
 		config.Subnet = subnet
+	} else {
+		// TODO: optimizer
+		config.Server = "SERVER ADDR HERE"
+	}
+	if protol, err := cmd.Flags().GetString("protocol"); err == nil {
+		config.Protol = protol
 	}
 }

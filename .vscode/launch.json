@@ -10,14 +10,27 @@
             "request": "launch",
             "mode": "auto",
             "program": "${fileDirname}"
-        },
-        {
+        }, {
             "name": "Debug cobra cli - init",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "main.go",
             "args": ["init", "-c", "conf/altgvn.yml", "-f"]
-        }
+        }, {
+            "name": "Debug cobra cli - up client",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "main.go",
+            "args": ["up", "-c", "conf/client-1.yaml", "--peers", "QmXNwkQemsBgbqKAbNqeHC4R7umKYHL89Gs2aFfyHCZ2qs"],
+        }, {
+            "name": "Debug cobra cli - up server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "main.go",
+            "args": ["up", "-c", "conf/server.yaml"],
+        },
     ]
 }
