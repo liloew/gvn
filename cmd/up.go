@@ -28,8 +28,6 @@ import (
 	"github.com/liloew/altgvn/p2p"
 	"github.com/liloew/altgvn/tun"
 	"github.com/sirupsen/logrus"
-	"github.com/songgao/packets/ethernet"
-	"github.com/songgao/water/waterutil"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -97,10 +95,17 @@ func upCommand(cmd *cobra.Command) {
 		for _, addr := range host.Addrs() {
 			bootstraps = append(bootstraps, fmt.Sprintf("%s/p2p/%s", addr.String(), host.ID().Pretty()))
 		}
-		dhcp.NewRPCServer(host, zone)
+		dhcp.NewRPCServer(host, zone, viper.GetString("dev.vip"))
+		// auto config in server mode
+		devChan <- tun.Device{
+			Name:    viper.GetString("dev.name"),
+			Ip:      viper.GetString("dev.vip"),
+			Mtu:     viper.GetInt("dev.mtu"),
+			Subnets: viper.GetStringSlice("dev.subnets"),
+		}
 	}
 	p2p.NewDHT(host, zone, bootstraps)
-	// BEGIN: DHCP
+	// BEGIN: DHCP for client mode
 	if MODE(viper.GetUint("mode")) == MODECLIENT {
 		go func() {
 			ticker := time.NewTicker(10 * time.Second)
@@ -118,7 +123,12 @@ func upCommand(cmd *cobra.Command) {
 					}).Info("DHCP - Got IP")
 					// TODO: if rs OK and push to chan
 					ticker.Stop()
-					devChan <- tun.Device{Name: res.Name, Ip: res.Id, Mtu: res.Mtu, Subnets: res.Subnets}
+					devChan <- tun.Device{
+						Name:    res.Name,
+						Ip:      res.Ip,
+						Mtu:     res.Mtu,
+						Subnets: res.Subnets,
+					}
 				}
 			}
 		}()
@@ -176,10 +186,6 @@ func upCommand(cmd *cobra.Command) {
 		go func() {
 			for {
 				if msg, err := sub.Next(context.Background()); err == nil {
-					// didn't ignore self message because of we process the route uniformly
-					// if msg.ReceivedFrom == host.ID() {
-					// 	continue
-					// }
 					message := new(p2p.Message)
 					if err := json.Unmarshal(msg.Data, message); err != nil {
 						logrus.WithFields(logrus.Fields{
@@ -209,39 +215,43 @@ func upCommand(cmd *cobra.Command) {
 	case dev := <-devChan:
 		// BEGIN: TUN
 		tun.NewTun(dev)
-		var frame ethernet.Frame
-		// avoid create duplicate
-		close(devChan)
-		for {
-			frame.Resize(int(config.Dev.Mtu))
-			n, err := tun.Read([]byte(frame))
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"ERROR": err,
-				}).Error("Read packet from TUN error")
-			}
-			frame = frame[:n]
-			if frame != nil && len(frame) > 0 {
-				if waterutil.IsIPv4(frame) {
-					// Only process IPv4 packet
-					if waterutil.IPv4Source(frame).String() == waterutil.IPv4Destination(frame).String() {
-						// FIXME: need't check src and dst ?
-					} else {
-						// TODO: froward to exactlly socket
-						// for id, stream := range streams {
-						// 	// TODO: check id and route
-						// 	if id != "" {
-						// 		bytes := append(frame, "\n"...)
-						// 		stream.Write(bytes)
-						// 	}
-						// }
-						p2p.ForwardPacket(frame)
+		/*
+			var frame ethernet.Frame
+			// avoid create duplicate
+			close(devChan)
+			for {
+				frame.Resize(int(config.Dev.Mtu))
+				n, err := tun.Read([]byte(frame))
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"ERROR": err,
+					}).Error("Read packet from TUN error")
+				}
+				frame = frame[:n]
+				if frame != nil && len(frame) > 0 {
+					if waterutil.IsIPv4(frame) {
+						// Only process IPv4 packet
+						if waterutil.IPv4Source(frame).String() == waterutil.IPv4Destination(frame).String() {
+							// FIXME: need't check src and dst ?
+						} else {
+							// TODO: froward to exactlly socket
+							// for id, stream := range streams {
+							// 	// TODO: check id and route
+							// 	if id != "" {
+							// 		bytes := append(frame, "\n"...)
+							// 		stream.Write(bytes)
+							// 	}
+							// }
+							p2p.ForwardPacket(frame)
+						}
 					}
 				}
 			}
-		}
+		*/
 		// END: TUN
 	}
+	ch := make(chan int, 1)
+	<-ch
 }
 
 func readData(stream network.Stream, rw *bufio.ReadWriter) {
