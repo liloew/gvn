@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"time"
 
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
@@ -9,16 +10,18 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
+	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	kdht *dht.IpfsDHT
+	kdht             *dht.IpfsDHT
+	routingDiscovery *discovery.RoutingDiscovery
 )
 
 // func NewDHT(host host.Host, bootstraps []multiaddr.Multiaddr) *dht.IpfsDHT {
-func NewDHT(host host.Host, bootstraps []string) *dht.IpfsDHT {
+func NewDHT(host host.Host, zone string, bootstraps []string) *dht.IpfsDHT {
 	ctx := context.Background()
 	addrs := make([]peer.AddrInfo, 0)
 	if len(bootstraps) > 0 {
@@ -63,6 +66,10 @@ func NewDHT(host host.Host, bootstraps []string) *dht.IpfsDHT {
 			}
 		}
 	}
+	routingDiscovery = discovery.NewRoutingDiscovery(kdht)
+	discovery.Advertise(ctx, routingDiscovery, zone)
+	go FindPeerIdsViaDHT(host, zone)
+	dht.RoutingTableRefreshPeriod(60 * time.Second)
 	return kdht
 }
 
@@ -131,13 +138,51 @@ func FindPeerIdsViaPubSub() []string {
 	return nil
 }
 
-func FindPeerIdsViaDHT(host host.Host) []string {
+func FindPeerIdsViaDHT(host host.Host, zone string) []string {
 	// TODO: check kdht nil
 	// TODO: multiplex the connection
-	peers := kdht.Host().Network().Peers()
 	peerIds := make([]string, 0)
-	for _, peer := range peers {
-		peerIds = append(peerIds, peer.Pretty())
+	/*
+		peers := kdht.Host().Network().Peers()
+		for _, peer := range peers {
+			peerIds = append(peerIds, peer.Pretty())
+		}
+	*/
+	// BEGIN: DEBUG
+	ticker := time.NewTicker(20 * time.Second)
+	go func(tk *time.Ticker) {
+		for {
+			select {
+			case <-tk.C:
+				// TODO:
+				peers, err := routingDiscovery.FindPeers(context.Background(), zone)
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"ERROR": err,
+					}).Error("Error at timer")
+					continue
+				}
+				for peer := range peers {
+					logrus.WithFields(logrus.Fields{
+						"PEER": peer.ID.Pretty(),
+					}).Info("Peers at timer")
+				}
+			}
+		}
+	}(ticker)
+	// END: DEBUG
+	if routingDiscovery != nil {
+		peers, err := routingDiscovery.FindPeers(context.Background(), zone)
+		if err != nil {
+			return peerIds
+		}
+		for peer := range peers {
+			if peer.ID == host.ID() {
+				continue
+			}
+			peerIds = append(peerIds, peer.ID.Pretty())
+		}
+		return peerIds
 	}
 	return peerIds
 	/*

@@ -18,6 +18,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -34,28 +35,22 @@ const (
 	MODESERVER
 )
 
-type Dev struct {
-	Name string   `yaml:"name,omitempty"`
-	Subs []string `yaml:"subs,omitempty"`
+type Device struct {
+	Name    string   `yaml:"name,omitempty"`
+	Vip     string   `yaml:"vip,omitempty"`
+	Mtu     uint     `yaml:"mtu,omitempty"`
+	Subnets []string `yaml:"subnets,omitempty"`
 }
 
 type Config struct {
 	Id     string `yaml:"id,omitempty"`
 	Mode   MODE   `yaml:"mode,omitempty"`
 	Server string `yaml:"server,omitempty"`
-	Subnet string `yaml:"subnet,omitempty"`
+	Dev    Device `yaml:"dev,omitempty"`
 	Protol string `yaml:"protocol"`
 	PriKey string `yaml:"priKey,omitempty"`
 	PubKey string `yaml:"pubKey,omitempty"`
-	Devs   []Dev  `yaml:"devs,omitempty"`
 }
-
-// // TODO:
-// func (c *Config) IsZero() bool {
-// 	if c.Mode == MODECLIENT {
-// 	}
-// 	return false
-// }
 
 // initCmd represents the init command
 var (
@@ -101,13 +96,17 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().BoolP("force", "f", false, "force overide the file")
 	initCmd.Flags().BoolP("server", "s", false, "server mode")
-	// availabe in server mode
-	initCmd.Flags().StringP("subnet", "", "192.168.1.1/24", "the CIDR subnet used in")
 	initCmd.Flags().StringP("protocol", "p", "/gvn/1.0.0", "the protocol support currently")
+	initCmd.Flags().StringP("devname", "", "", "the TUN device name, recommend using utun[\\d] for cross platform, utun3 for example")
+	initCmd.Flags().StringP("subnets", "", "", "the subnets traffice through this node")
+	initCmd.Flags().UintP("mtu", "", 1500, "the MUT will be used in TUN device")
+	// availabe in server mode
+	initCmd.Flags().StringP("vip", "", "192.168.1.1/24", "the CIDR subnet used in server, all clients in the same subnet with a fake DHCP")
 }
 
 // parse the config object
 func parseConfig(cmd cobra.Command, config *Config) {
+	var dev Device
 	host, err := libp2p.New()
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -125,13 +124,25 @@ func parseConfig(cmd cobra.Command, config *Config) {
 	config.Mode = MODECLIENT
 	if server, _ := cmd.Flags().GetBool("server"); server {
 		config.Mode = MODESERVER
-		subnet, _ := cmd.Flags().GetString("subnet")
-		config.Subnet = subnet
+		vip, _ := cmd.Flags().GetString("vip")
+		dev.Vip = vip
 	} else {
 		// TODO: optimizer
 		config.Server = "SERVER ADDR HERE"
 	}
+	if devName, err := cmd.Flags().GetString("devname"); err == nil {
+		dev.Name = devName
+	}
+	if mtu, err := cmd.Flags().GetUint("mtu"); err == nil {
+		dev.Mtu = mtu
+	}
+	if subnets, err := cmd.Flags().GetString("subnets"); err == nil {
+		// sbs := make([]string, 0)
+		// sbs = append(sbs, strings.Split(subnets, ",")...)
+		dev.Subnets = append(dev.Subnets, strings.Split(subnets, ",")...)
+	}
 	if protol, err := cmd.Flags().GetString("protocol"); err == nil {
 		config.Protol = protol
 	}
+	config.Dev = dev
 }
