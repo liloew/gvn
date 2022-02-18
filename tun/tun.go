@@ -1,6 +1,8 @@
 package tun
 
 import (
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 	"github.com/songgao/packets/ethernet"
 	tun "golang.zx2c4.com/wireguard/tun"
@@ -11,8 +13,9 @@ type Device struct {
 	// CIDR
 	Ip string
 	// Mask    string
-	Mtu     int
-	Subnets []string
+	Mtu       int
+	Subnets   []string
+	ServerVIP string
 }
 
 var (
@@ -26,7 +29,11 @@ func NewTun(dev Device) {
 			"ERROR": err,
 		}).Panic("Create TUN error")
 	}
-	// TODO: Config ip and firewall
+	if err := ConfigAddr(dev); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+		}).Panic("Configure TUN error")
+	}
 	device = ifce
 }
 
@@ -46,4 +53,12 @@ func Close() {
 			"ERROR": err,
 		}).Error("Close TUN device errro")
 	}
+}
+
+func ipv4MaskString(m []byte) string {
+	if len(m) != 4 {
+		logrus.Panic("ipv4Mask: len must be 4 bytes")
+	}
+
+	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
 }

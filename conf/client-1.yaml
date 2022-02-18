@@ -1,5 +1,5 @@
 id: QmRXEg5o6PfQaoBaC9jUeWmW6u4teQFfLqZHAL47kVXoJL
-server: "/ip4/172.168.1.120/tcp/61505/p2p/QmSGY3kKiJ3qHhhNeb3bMJgch7mo6HbK9zAhyLDyZCCjtz"
+server: "/ip4/172.168.1.120/tcp/60616/p2p/QmSGY3kKiJ3qHhhNeb3bMJgch7mo6HbK9zAhyLDyZCCjtz"
 dev:
   name: utun4
   mtu: 1420

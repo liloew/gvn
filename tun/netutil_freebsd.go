@@ -1,7 +1,7 @@
 package tun
 
-func ConfigAddr() {
-
+func ConfigAddr(dev Device) error {
+	return nil
 }
 
 func RemoveRoute(subnet []string) {

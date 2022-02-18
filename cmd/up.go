@@ -98,10 +98,11 @@ func upCommand(cmd *cobra.Command) {
 		dhcp.NewRPCServer(host, zone, viper.GetString("dev.vip"))
 		// auto config in server mode
 		devChan <- tun.Device{
-			Name:    viper.GetString("dev.name"),
-			Ip:      viper.GetString("dev.vip"),
-			Mtu:     viper.GetInt("dev.mtu"),
-			Subnets: viper.GetStringSlice("dev.subnets"),
+			Name:      viper.GetString("dev.name"),
+			Ip:        viper.GetString("dev.vip"),
+			Mtu:       viper.GetInt("dev.mtu"),
+			Subnets:   viper.GetStringSlice("dev.subnets"),
+			ServerVIP: viper.GetString("dev.vip"),
 		}
 	}
 	p2p.NewDHT(host, zone, bootstraps)
@@ -124,10 +125,11 @@ func upCommand(cmd *cobra.Command) {
 					// TODO: if rs OK and push to chan
 					ticker.Stop()
 					devChan <- tun.Device{
-						Name:    res.Name,
-						Ip:      res.Ip,
-						Mtu:     res.Mtu,
-						Subnets: res.Subnets,
+						Name:      res.Name,
+						Ip:        res.Ip,
+						Mtu:       res.Mtu,
+						Subnets:   res.Subnets,
+						ServerVIP: res.ServerVIP,
 					}
 				}
 			}

@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	MaxCIDR string
-	mu      sync.Mutex
+	ServerVIP string
+	MaxCIDR   string
+	mu        sync.Mutex
 )
 
 type Request struct {
@@ -26,11 +27,12 @@ type Request struct {
 }
 
 type Response struct {
-	Id      string
-	Name    string
-	Ip      string
-	Mtu     int
-	Subnets []string
+	Id        string
+	Name      string
+	Ip        string
+	Mtu       int
+	Subnets   []string
+	ServerVIP string
 }
 
 type DHCPService struct {
@@ -57,6 +59,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 
 		if MaxCIDR == "" {
 			MaxCIDR = s.Cidr
+			ServerVIP = s.Cidr
 		}
 		ipv4Addr, ipv4Net, err := net.ParseCIDR(MaxCIDR)
 		if err != nil {
@@ -72,6 +75,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 			// TODO: loop for an available ip
 		}
 		data.Ip = MaxCIDR
+		data.ServerVIP = ServerVIP
 	}
 	s.KV[req.Id] = data
 	// res = &data
@@ -80,6 +84,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	res.Name = data.Name
 	res.Mtu = data.Mtu
 	res.Subnets = data.Subnets
+	res.ServerVIP = data.ServerVIP
 	mu.Unlock()
 	return nil
 }
