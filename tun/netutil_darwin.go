@@ -1,17 +1,27 @@
 package tun
 
+var (
+	VIP string
+)
+
 func ConfigAddr(dev Device) error {
 	return nil
 }
 
-func RemoveRoute(subnet []string) {
+func UnloadFirewall(dev Device) error {
+	// TODO:
+	return nil
+}
+
+func RemoveRoute(subnets []string) {
 
 }
 
-func AddRoute(subnet []string) {
+func AddRoute(subnets []string) {
 
 }
 
-func RefreshRoute(subnet []string) {
-
+func RefreshRoute(subnets []string) {
+	RemoveRoute(subnets)
+	AddRoute(subnets)
 }

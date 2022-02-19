@@ -15,19 +15,18 @@ var (
 )
 
 func ConfigAddr(dev Device) error {
+	VIP = dev.Ip
 	tmpfile, err := ioutil.TempFile("", "ConfigureAddr-*.bat")
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"File": tmpfile,
 		}).Error("AddRoute error when create tmp file")
 	}
-	// DEBUG
-	// defer os.Remove(tmpfile.Name())
 	logrus.WithFields(logrus.Fields{
 		"File": tmpfile.Name(),
 	}).Info("bat file to be executed")
 	// cidr -> 10.30.20.0/24,172.16.1.1/23 and etc
-	ipv4Addr, ipv4Net, err := net.ParseCIDR(dev.Ip)
+	ipv4Addr, ipv4Net, err := net.ParseCIDR(VIP)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR": err,
@@ -56,37 +55,32 @@ func ConfigAddr(dev Device) error {
 		"COMMAND": content,
 	}).Debug("Execute command")
 
-	RunCommand(tmpfile.Name())
+	if err := RunCommand(tmpfile.Name()); err == nil {
+		// remove if success otherwise for debug
+		defer os.Remove(tmpfile.Name())
+	}
 
 	return nil
 }
 
-func RemoveRoute(subnets []string) {
-
+func UnloadFirewall(dev Device) error {
+	return RemoveRoute(dev.Subnets)
 }
 
-func AddRoute(subnets []string, vip string) error {
-	VIP = vip
+func RemoveRoute(subnets []string) error {
 	logrus.WithFields(logrus.Fields{
 		"subnets": subnets,
-		"VIP":     vip,
-	}).Debug("Subnets to be added")
-	tmpfile, err := ioutil.TempFile("", "AddRoute-*.sh")
+		"VIP":     VIP,
+	}).Debug("Subnets to be removed")
+	tmpfile, err := ioutil.TempFile("", "RemoveRoute-*.bat")
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"File": tmpfile,
-		}).Error("AddRoute error when create tmp file")
+		}).Error("RemoveRoute error when create tmp file")
 	}
-	defer os.Remove(tmpfile.Name())
-	// cidr -> 10.30.20.0/24,172.16.1.1/23 and etc
 	content := ""
 	for _, route := range subnets {
-		// "${IPOPR}" route add ${ROU} dev $INTERFACE
-		// content = fmt.Sprintf("%s\n${IPOPR} route add %s dev $INTERFACE", content, route)
-		// 不在此处更新, 此处逻辑在客户端
-		// // 更新路由表
-		// IPTable.AddByString(route, vip)
-		content = fmt.Sprintf("%s\nroute delete %s\nroute add -p %s %%GVN_IP%% metric 1", content, route, route)
+		content = fmt.Sprintf("%s\nroute delete %s\n", content, route)
 	}
 	if _, err := tmpfile.Write([]byte(content)); err != nil {
 		return err
@@ -96,7 +90,55 @@ func AddRoute(subnets []string, vip string) error {
 		"COMMAND": content,
 	}).Debug("Execute command")
 
-	RunCommand(tmpfile.Name())
+	if err := tmpfile.Close(); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+			"File":  tmpfile.Name(),
+		}).Error("RemoveRoute - Close tmp file error")
+		return err
+	}
+
+	if err := RunCommand(tmpfile.Name()); err == nil {
+		defer os.Remove(tmpfile.Name())
+	}
+	return nil
+}
+
+func AddRoute(subnets []string) error {
+	logrus.WithFields(logrus.Fields{
+		"subnets": subnets,
+		"VIP":     VIP,
+	}).Debug("Subnets to be added")
+	tmpfile, err := ioutil.TempFile("", "AddRoute-*.sh")
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"File": tmpfile,
+		}).Error("AddRoute error when create tmp file")
+	}
+	// cidr -> 10.30.20.0/24,172.16.1.1/23 and etc
+	ipv4Addr, _, err := net.ParseCIDR(VIP)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+		}).Error("Parse VIP error")
+	}
+	vipWithoutMask := ipv4Addr.String()
+	content := ""
+	for _, route := range subnets {
+		content = fmt.Sprintf("%s\nroute delete %s\nroute add -p %s %s metric 1", content, route, route, vipWithoutMask)
+	}
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		return err
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"COMMAND": content,
+	}).Debug("Execute command")
+
+	if err := RunCommand(tmpfile.Name()); err == nil {
+		defer os.Remove(tmpfile.Name())
+	}
 
 	if err := tmpfile.Close(); err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -108,30 +150,15 @@ func AddRoute(subnets []string, vip string) error {
 	return nil
 }
 
-func RefreshRoute(subnet []string) {
-
+func RefreshRoute(subnets []string) {
+	RemoveRoute(subnets)
+	AddRoute(subnets)
 }
 
 func RunCommand(filepath string) error {
-	// ipv4Addr, ipv4Net, err := net.ParseCIDR(VIP)
-	// if err != nil {
-	// 	logrus.WithFields(logrus.Fields{
-	// 		"ERROR":   err,
-	// 		"ip":      VIP,
-	// 		"IPv4Net": ipv4Net,
-	// 	}).Error("Does not provide VIP")
-	// }
 	cmd := exec.Command(filepath)
-	// 传入环境变量
 	cmd.Env = os.Environ()
-	// cmd.Env = append(cmd.Env,
-	// 	"MODE="+viper.GetString("gvn.mode"),
-	// 	"INTERFACE="+viper.GetString("gvn.device.name"),
-	// 	"GVN_IP="+ipv4Addr.String(),
-	// 	"IP_COMMAND="+viper.GetString("gvn.device.commands.ip"),
-	// 	"IPTABLES_COMMAND="+viper.GetString("gvn.device.commands.iptables"),
-	// )
-	// 计算掩码
+	// calculate the mask
 	if err := cmd.Run(); err != nil {
 		output, _ := cmd.Output()
 		logrus.WithFields(logrus.Fields{

@@ -20,6 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/network"
@@ -33,20 +36,23 @@ import (
 )
 
 // upCmd represents the up command
-var upCmd = &cobra.Command{
-	Use:   "up",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
+var (
+	upCmd = &cobra.Command{
+		Use:   "up",
+		Short: "A brief description of your command",
+		Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("up called")
-		upCommand(cmd)
-	},
-}
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("up called")
+			upCommand(cmd)
+		},
+	}
+	mainDev tun.Device
+)
 
 func init() {
 	rootCmd.AddCommand(upCmd)
@@ -216,6 +222,7 @@ func upCommand(cmd *cobra.Command) {
 	select {
 	case dev := <-devChan:
 		// BEGIN: TUN
+		mainDev = dev
 		tun.NewTun(dev)
 		/*
 			var frame ethernet.Frame
@@ -252,6 +259,30 @@ func upCommand(cmd *cobra.Command) {
 		*/
 		// END: TUN
 	}
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		for sig := range c {
+			switch sig {
+			case syscall.SIGINT:
+				// TODO: ctrl+c - 退出
+				logrus.WithFields(logrus.Fields{
+					"SIG": sig,
+				}).Info("Exit for SIGINT")
+				tun.Close(mainDev)
+				os.Exit(0)
+			case syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT:
+				logrus.WithFields(logrus.Fields{
+					"SIG": sig,
+				}).Info("Receive SIGHUP/SIGTERM/SIGQUIT but ignore currently")
+			default:
+				logrus.WithFields(logrus.Fields{
+					"SIG": sig,
+				}).Info("默认信号")
+			}
+		}
+	}()
 	ch := make(chan int, 1)
 	<-ch
 }

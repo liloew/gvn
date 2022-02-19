@@ -23,6 +23,7 @@ const (
 type Message struct {
 	Id          string      `json:"id"`
 	MessageType MessageType `json:"messageType"`
+	Vip         string      `json:"vip"`
 	Subnets     []string    `json:subnets`
 }
 

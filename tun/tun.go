@@ -47,12 +47,20 @@ func Write(frame ethernet.Frame) (int, error) {
 	return n, err
 }
 
-func Close() {
+func Close(dev Device) error {
+	if err := UnloadFirewall(dev); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+		}).Error("Unload ip/firewall rules error")
+		return err
+	}
 	if err := device.Close(); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR": err,
-		}).Error("Close TUN device errro")
+		}).Error("Close TUN device error")
+		return err
 	}
+	return nil
 }
 
 func ipv4MaskString(m []byte) string {
