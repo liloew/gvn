@@ -41,7 +41,7 @@ func ConfigAddr(dev Device) error {
 	mask := ipv4MaskString(ipv4Net.Mask)
 	serverVIP, _, _ := net.ParseCIDR(dev.ServerVIP)
 	// content := fmt.Sprintf("netsh interface ip set address name=%s source=static addr=%s mask=%s gateway=%s gwmetric=1", dev.Name, vip, mask, serverVIP.String())
-	content := `export LOGFILE="/tmp/$(date +%Y%m%d%H%M%S).log"
+	content := `export LOGFILE="/tmp/ConfigAddr-$(date +%Y%m%d%H%M%S).log"
 export OS="$(uname)"
 if [ "${OS}" == "Linux" ]
 then
@@ -162,7 +162,7 @@ func UnloadFirewall(dev Device) error {
 	mask := ipv4MaskString(ipv4Net.Mask)
 	serverVIP, _, _ := net.ParseCIDR(dev.ServerVIP)
 	// content := fmt.Sprintf("netsh interface ip set address name=%s source=static addr=%s mask=%s gateway=%s gwmetric=1", dev.Name, vip, mask, serverVIP.String())
-	content := `export LOGFILE="/tmp/$(date +%Y%m%d%H%M%S)"
+	content := `export LOGFILE="/tmp/UnloadFirewall-$(date +%Y%m%d%H%M%S).log"
 export OS="$(uname)"
 if [ "${OS}" == "Linux" ]
 then
@@ -272,7 +272,7 @@ func AddRoute(subnets []string) error {
 	// vip := ipv4Addr.String()
 	// mask := ipv4MaskString(ipv4Net.Mask)
 	// content := fmt.Sprintf("netsh interface ip set address name=%s source=static addr=%s mask=%s gateway=%s gwmetric=1", dev.Name, vip, mask, serverVIP.String())
-	content := `export LOGFILE="/tmp/$(date +%Y%m%d%H%M%S).log"
+	content := `export LOGFILE="/tmp/AddRoute-$(date +%Y%m%d%H%M%S).log"
 export OS="$(uname)"
 if [ "${OS}" == "Linux" ]
 then
@@ -344,7 +344,7 @@ func RemoveRoute(subnets []string) error {
 	// vip := ipv4Addr.String()
 	// mask := ipv4MaskString(ipv4Net.Mask)
 	// content := fmt.Sprintf("netsh interface ip set address name=%s source=static addr=%s mask=%s gateway=%s gwmetric=1", dev.Name, vip, mask, serverVIP.String())
-	content := `export LOGFILE="/tmp/$(date +%Y%m%d%H%M%S).log"
+	content := `export LOGFILE="/tmp/RemoveRoute-$(date +%Y%m%d%H%M%S).log"
 export OS="$(uname)"
 if [ "${OS}" == "Linux" ]
 then

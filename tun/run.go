@@ -23,7 +23,7 @@ func RunCommand(filepath string, envs ...string) error {
 	}
 	logrus.WithFields(logrus.Fields{
 		"Envs": cmd.Env,
-	}).Info("Environments")
+	}).Debug("Environments")
 	// calculate the mask
 	if err := cmd.Run(); err != nil {
 		output, _ := cmd.Output()

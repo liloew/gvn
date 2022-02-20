@@ -151,22 +151,19 @@ func FindPeerIdsViaDHT(host host.Host, zone string) []string {
 	// BEGIN: DEBUG
 	ticker := time.NewTicker(20 * time.Second)
 	go func(tk *time.Ticker) {
-		for {
-			select {
-			case <-tk.C:
-				// TODO:
-				peers, err := routingDiscovery.FindPeers(context.Background(), zone)
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"ERROR": err,
-					}).Error("Error at timer")
-					continue
-				}
-				for peer := range peers {
-					logrus.WithFields(logrus.Fields{
-						"PEER": peer.ID.Pretty(),
-					}).Info("Peers at timer")
-				}
+		for _ = range tk.C {
+			// TODO:
+			peers, err := routingDiscovery.FindPeers(context.Background(), zone)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"ERROR": err,
+				}).Error("Error at timer")
+				continue
+			}
+			for peer := range peers {
+				logrus.WithFields(logrus.Fields{
+					"PEER": peer.ID.Pretty(),
+				}).Debug("Peers at timer")
 			}
 		}
 	}(ticker)
