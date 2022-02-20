@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 
 	"github.com/sirupsen/logrus"
 )
@@ -20,7 +19,7 @@ func ConfigAddr(dev Device) error {
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"File": tmpfile,
-		}).Error("AddRoute error when create tmp file")
+		}).Error("ConfigureAddr error when create tmp file")
 	}
 	logrus.WithFields(logrus.Fields{
 		"File": tmpfile.Name(),
@@ -109,7 +108,7 @@ func AddRoute(subnets []string) error {
 		"subnets": subnets,
 		"VIP":     VIP,
 	}).Debug("Subnets to be added")
-	tmpfile, err := ioutil.TempFile("", "AddRoute-*.sh")
+	tmpfile, err := ioutil.TempFile("", "AddRoute-*.bat")
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"File": tmpfile,
@@ -153,25 +152,4 @@ func AddRoute(subnets []string) error {
 func RefreshRoute(subnets []string) {
 	RemoveRoute(subnets)
 	AddRoute(subnets)
-}
-
-func RunCommand(filepath string) error {
-	cmd := exec.Command(filepath)
-	cmd.Env = os.Environ()
-	// calculate the mask
-	if err := cmd.Run(); err != nil {
-		output, _ := cmd.Output()
-		logrus.WithFields(logrus.Fields{
-			"script": filepath,
-			"ERROR":  err,
-			"OUTPUT": output,
-		}).Error("Execute failed")
-		return err
-	} else {
-		output, _ := cmd.Output()
-		logrus.WithFields(logrus.Fields{
-			"OUTPUT": output,
-		}).Debug("Execute success")
-	}
-	return nil
 }

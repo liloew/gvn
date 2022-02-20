@@ -85,6 +85,9 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	res.Mtu = data.Mtu
 	res.Subnets = data.Subnets
 	res.ServerVIP = data.ServerVIP
+	logrus.WithFields(logrus.Fields{
+		"res": res,
+	}).Info("RPC - Client requested data")
 	mu.Unlock()
 	return nil
 }

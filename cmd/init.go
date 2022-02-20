@@ -44,6 +44,7 @@ type Device struct {
 
 type Config struct {
 	Id     string `yaml:"id,omitempty"`
+	Port   uint   `yaml:"port,omitempty"`
 	Mode   MODE   `yaml:"mode,omitempty"`
 	Server string `yaml:"server,omitempty"`
 	Dev    Device `yaml:"dev,omitempty"`
@@ -96,7 +97,8 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().BoolP("force", "f", false, "force overide the file")
 	initCmd.Flags().BoolP("server", "s", false, "server mode")
-	initCmd.Flags().StringP("protocol", "p", "/gvn/1.0.0", "the protocol support currently")
+	initCmd.Flags().UintP("port", "", 6543, "the port all the other nodes connect to")
+	initCmd.Flags().StringP("protocol", "", "/gvn/1.0.0", "the protocol support currently")
 	initCmd.Flags().StringP("devname", "", "", "the TUN device name, recommend using utun[\\d] for cross platform, utun3 for example")
 	initCmd.Flags().StringP("subnets", "", "", "the subnets traffice through this node")
 	initCmd.Flags().UintP("mtu", "", 1500, "the MUT will be used in TUN device")
@@ -129,6 +131,9 @@ func parseConfig(cmd cobra.Command, config *Config) {
 	} else {
 		// TODO: optimizer
 		config.Server = "SERVER ADDR HERE"
+	}
+	if port, err := cmd.Flags().GetUint("port"); err == nil {
+		config.Port = port
 	}
 	if devName, err := cmd.Flags().GetString("devname"); err == nil {
 		dev.Name = devName

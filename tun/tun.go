@@ -16,6 +16,8 @@ type Device struct {
 	Mtu       int
 	Subnets   []string
 	ServerVIP string
+	// iptables
+	Port uint
 }
 
 var (

@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/libp2p/go-libp2p"
@@ -27,12 +28,13 @@ type Message struct {
 	Subnets     []string    `json:subnets`
 }
 
-func NewPeer(priKey string) (host.Host, error) {
+func NewPeer(priKey string, port uint) (host.Host, error) {
 	pk, err := crypto.UnmarshalPrivateKey([]byte(priKey))
 	if err != nil {
 		return nil, err
 	}
 	host, err := libp2p.New(
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)),
 		libp2p.Identity(pk),
 		libp2p.ForceReachabilityPublic(),
 		libp2p.FallbackDefaults,

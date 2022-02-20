@@ -67,7 +67,7 @@ func upCommand(cmd *cobra.Command) {
 			"ERROR": err,
 		}).Panic("Unmarshal config file error")
 	}
-	host, err := p2p.NewPeer(config.PriKey)
+	host, err := p2p.NewPeer(config.PriKey, config.Port)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR":      err,
@@ -109,6 +109,7 @@ func upCommand(cmd *cobra.Command) {
 			Mtu:       viper.GetInt("dev.mtu"),
 			Subnets:   viper.GetStringSlice("dev.subnets"),
 			ServerVIP: viper.GetString("dev.vip"),
+			Port:      viper.GetUint("port"),
 		}
 	}
 	p2p.NewDHT(host, zone, bootstraps)
@@ -130,8 +131,12 @@ func upCommand(cmd *cobra.Command) {
 					}).Info("DHCP - Got IP")
 					// TODO: if rs OK and push to chan
 					ticker.Stop()
+					logrus.WithFields(logrus.Fields{
+						"res": res,
+						"req": req,
+					}).Info("RPC - Client received data")
 					devChan <- tun.Device{
-						Name:      res.Name,
+						Name:      req.Name,
 						Ip:        res.Ip,
 						Mtu:       res.Mtu,
 						Subnets:   res.Subnets,
