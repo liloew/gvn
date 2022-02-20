@@ -135,10 +135,6 @@ func AddRoute(subnets []string) error {
 		"COMMAND": content,
 	}).Debug("Execute command")
 
-	if err := RunCommand(tmpfile.Name()); err == nil {
-		defer os.Remove(tmpfile.Name())
-	}
-
 	if err := tmpfile.Close(); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR": err,
@@ -146,6 +142,11 @@ func AddRoute(subnets []string) error {
 		}).Error("AddRoute - Close tmp file error")
 		return err
 	}
+
+	if err := RunCommand(tmpfile.Name()); err == nil {
+		defer os.Remove(tmpfile.Name())
+	}
+
 	return nil
 }
 

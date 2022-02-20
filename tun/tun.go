@@ -3,9 +3,9 @@ package tun
 import (
 	"fmt"
 
+	tun "github.com/liloew/wireguard-go/tun"
 	"github.com/sirupsen/logrus"
 	"github.com/songgao/packets/ethernet"
-	tun "golang.zx2c4.com/wireguard/tun"
 )
 
 type Device struct {
@@ -25,7 +25,7 @@ var (
 )
 
 func NewTun(dev Device) {
-	ifce, err := tun.CreateTUN(dev.Name, dev.Mtu)
+	ifce, err := tun.CreateTUN(dev.Name, dev.Mtu, true)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR": err,
@@ -40,6 +40,7 @@ func NewTun(dev Device) {
 }
 
 func Read(frame []byte) (int, error) {
+	// TODO: Linux IF_NO_PI +4 otherwise 0
 	n, err := device.Read(frame, 0)
 	return n, err
 }

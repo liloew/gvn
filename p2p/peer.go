@@ -2,18 +2,34 @@ package p2p
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/liloew/altgvn/tun"
 	"github.com/sirupsen/logrus"
+	"github.com/songgao/water/waterutil"
+	"github.com/zmap/go-iptree/iptree"
 )
 
 type MessageType uint
 type MessageHandler pubsub.TopicEventHandlerOpt
+
+type Publisher struct {
+	pub *pubsub.Topic
+	sub *pubsub.Subscription
+}
+
+type Publish interface {
+	Publish(subnets []string)
+}
 
 const (
 	MessageTypeOnline MessageType = iota
@@ -26,6 +42,18 @@ type Message struct {
 	MessageType MessageType `json:"messageType"`
 	Vip         string      `json:"vip"`
 	Subnets     []string    `json:subnets`
+}
+
+var (
+	// subnet-1: [peerId-1, ...], ...
+	//routeTable = make(map[string][]string)
+	RouteTable = iptree.New()
+	// peerId: stream
+	Streams = make(map[string]network.Stream)
+)
+
+func init() {
+
 }
 
 func NewPeer(priKey string, port uint) (host.Host, error) {
@@ -52,7 +80,8 @@ func NewPeer(priKey string, port uint) (host.Host, error) {
 	return host, nil
 }
 
-func NewPubSub(host host.Host, topic string) (*pubsub.Topic, *pubsub.Subscription) {
+// func NewPubSub(host host.Host, topic string) (*pubsub.Topic, *pubsub.Subscription) {
+func NewPubSub(host host.Host, topic string) *Publisher {
 	// TODO: host has join DHT
 	ctx, _ := context.WithCancel(context.Background())
 	// defer cancle()
@@ -92,10 +121,110 @@ func NewPubSub(host host.Host, topic string) (*pubsub.Topic, *pubsub.Subscriptio
 				"ERROR": err,
 			}).Error("Subscribe error")
 		}
-		return tc, sub
+
+		// BEGIN: publish routes broadcast and subscribe other peers
+		go func() {
+			for {
+				if msg, err := sub.Next(context.Background()); err == nil {
+					message := new(Message)
+					if err := json.Unmarshal(msg.Data, message); err != nil {
+						logrus.WithFields(logrus.Fields{
+							"ERROR": err,
+						}).Error("Parse message from topic error")
+					} else {
+						logrus.WithFields(logrus.Fields{
+							"Message": message,
+						}).Info("Receive message from topic")
+						// refresh local table
+						if message.MessageType == MessageTypeRoute {
+							// TODO: add MASQUERADE if self
+							// refresh route table - delete exist route if match then add table
+							tun.RefreshRoute(message.Subnets)
+							for _, subnet := range message.Subnets {
+								// Add will override the exist one
+								RouteTable.AddByString(strings.TrimSpace(subnet), message.Id)
+							}
+						}
+					}
+				} else {
+					logrus.WithFields(logrus.Fields{
+						"ERROR": err,
+					}).Error("Subscribe error")
+				}
+			}
+		}()
+
+		return &Publisher{
+			pub: tc,
+			sub: sub,
+		}
 	}
-	return nil, nil
+	return nil
 }
 
-func ForwardPacket(packets []byte) {
+func (p *Publisher) Publish(peerId string, subnets []string) {
+	if len(subnets) > 0 {
+		message := &Message{
+			Id:          peerId,
+			MessageType: MessageTypeRoute,
+			Subnets:     subnets,
+		}
+		if bytes, err := json.Marshal(message); err == nil {
+			ticker := time.NewTicker(10 * time.Second)
+			go func(tk *time.Ticker) {
+				interval := 10
+				for _ = range tk.C {
+					if err := p.pub.Publish(context.Background(), bytes); err != nil {
+						logrus.WithFields(logrus.Fields{
+							"ERROR":   err,
+							"Message": message,
+						}).Error("Publish message from to topic error")
+					}
+					if interval < 30*60 {
+						// half of hour for the longest
+						interval *= 2
+					}
+					ticker = time.NewTicker(time.Duration(interval) * time.Second)
+				}
+			}(ticker)
+		}
+	}
+}
+
+func ForwardPacket(host host.Host, zone string, packets []byte) {
+	// if match then forward otherwise discard
+	// logrus.WithFields(logrus.Fields{
+	// 	"SIZE":    len(packets),
+	// 	"PACKETS": packets,
+	// }).Info("TODO:")
+	dst := waterutil.IPv4Destination(packets).String()
+	if peerId, found, err := RouteTable.GetByString(dst); err == nil && found {
+		// TODO: fetch stream using peerId
+		if stream, ok := Streams[peerId.(string)]; ok {
+			// TODO: appending ?
+			bytes := append(packets, "\n"...)
+			if n, err := stream.Write(bytes); n != len(bytes) || err != nil {
+				logrus.WithFields(logrus.Fields{
+					"ERROR": err,
+				}).Error("Forward to stream error")
+			}
+			// TODO: retry
+		} else {
+			// make new stream
+			if s, ok := NewStreams(host, zone, strings.Split(peerId.(string), ","))[peerId.(string)]; ok {
+				Streams[peerId.(string)] = s
+				ForwardPacket(host, zone, packets)
+			} else {
+				logrus.WithFields(logrus.Fields{
+					"ERROR": err,
+				}).Error("Forward to stream error")
+			}
+		}
+	} else {
+		// discard
+		logrus.WithFields(logrus.Fields{
+			"SRC": waterutil.IPv4Source(packets).String(),
+			"DST": dst,
+		}).Error("Discard")
+	}
 }
