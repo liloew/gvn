@@ -101,7 +101,7 @@ func upCommand(cmd *cobra.Command) {
 		for _, addr := range host.Addrs() {
 			bootstraps = append(bootstraps, fmt.Sprintf("%s/p2p/%s", addr.String(), host.ID().Pretty()))
 		}
-		dhcp.NewRPCServer(host, zone, viper.GetString("dev.vip"))
+		dhcp.NewRPCServer(host, zone, viper.GetString("dev.vip"), viper.GetInt("dev.mtu"))
 		// auto config in server mode
 		devChan <- tun.Device{
 			Name:      viper.GetString("dev.name"),

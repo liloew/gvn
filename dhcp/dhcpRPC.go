@@ -17,6 +17,7 @@ import (
 var (
 	ServerVIP string
 	MaxCIDR   string
+	Mtu int
 	mu        sync.Mutex
 )
 
@@ -40,6 +41,7 @@ type DHCPService struct {
 	KV map[string]Response
 	// should be 192.168.1.1/24 for example
 	Cidr string
+	Mtu int
 }
 
 func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) error {
@@ -60,6 +62,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 		if MaxCIDR == "" {
 			MaxCIDR = s.Cidr
 			ServerVIP = s.Cidr
+			Mtu = s.Mtu
 		}
 		ipv4Addr, ipv4Net, err := net.ParseCIDR(MaxCIDR)
 		if err != nil {
@@ -75,6 +78,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 			// TODO: loop for an available ip
 		}
 		data.Ip = MaxCIDR
+		data.Mtu = 
 		data.ServerVIP = ServerVIP
 	}
 	s.KV[req.Id] = data
@@ -92,9 +96,9 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	return nil
 }
 
-func NewRPCServer(host host.Host, zone string, cidr string) {
+func NewRPCServer(host host.Host, zone string, cidr string, mtu int) {
 	server := rpc.NewServer(host, protocol.ID(zone))
-	service := DHCPService{KV: map[string]Response{}, Cidr: cidr}
+	service := DHCPService{KV: map[string]Response{}, Cidr: cidr, Mtu: mtu}
 	if err := server.Register(&service); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR": err,
