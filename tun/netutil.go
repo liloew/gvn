@@ -364,7 +364,7 @@ then
     for ROU in ${ROUTES}
     do
         echo "sudo ${ROUTE} delete ${ROU}" >> "${LOGFILE}"
-        sudo "${ROUTE}" delete ${ROU} "
+        sudo "${ROUTE}" delete ${ROU}
     done
 fi`
 	if _, err := tmpfile.Write([]byte(content)); err != nil {

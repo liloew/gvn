@@ -184,7 +184,11 @@ func (p *Publisher) Publish(peerId string, subnets []string) {
 						// half of hour for the longest
 						interval *= 2
 					}
-					ticker = time.NewTicker(time.Duration(interval) * time.Second)
+					logrus.WithFields(logrus.Fields{
+						"Interval": interval,
+					}).Info("")
+					ticker.Reset(time.Duration(interval) * time.Second)
+					// ticker = time.NewTicker(time.Duration(interval) * time.Second)
 				}
 			}(ticker)
 		}
