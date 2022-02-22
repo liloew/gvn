@@ -2,9 +2,9 @@ package p2p
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"time"
 
@@ -45,11 +45,8 @@ type Message struct {
 }
 
 var (
-	// subnet-1: [peerId-1, ...], ...
-	//routeTable = make(map[string][]string)
 	RouteTable = iptree.New()
-	// peerId: stream
-	Streams = make(map[string]network.Stream)
+	Streams    = make(map[string]network.Stream)
 )
 
 func init() {
@@ -70,7 +67,6 @@ func NewPeer(priKey string, port uint) (host.Host, error) {
 	if err != nil {
 		return host, err
 	}
-	// TODO:
 	// defer host.Close()
 	logrus.WithFields(logrus.Fields{
 		"Addrs": host.Addrs(),
@@ -80,30 +76,10 @@ func NewPeer(priKey string, port uint) (host.Host, error) {
 	return host, nil
 }
 
-// func NewPubSub(host host.Host, topic string) (*pubsub.Topic, *pubsub.Subscription) {
 func NewPubSub(host host.Host, topic string) *Publisher {
-	// TODO: host has join DHT
 	ctx, _ := context.WithCancel(context.Background())
 	// defer cancle()
-	// BEGIN: DEBUG
-	tmpfile, err := ioutil.TempFile("", "PubSub-Tracer-*.json")
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"File":  tmpfile,
-			"ERROR": err,
-		}).Error("Creat tmp file error")
-	}
-	tracer, err := pubsub.NewJSONTracer(tmpfile.Name())
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"ERROR": err,
-		}).Error("Creat tracer error")
-	}
-	logrus.WithFields(logrus.Fields{
-		"File": tmpfile.Name(),
-	}).Info("Trace file")
-	// END: DEBUG
-	ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithEventTracer(tracer), pubsub.WithDiscovery(routingDiscovery))
+	ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithDiscovery(routingDiscovery))
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"ERROR": err,
@@ -127,6 +103,10 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 			for {
 				if msg, err := sub.Next(context.Background()); err == nil {
 					message := new(Message)
+					if msg.ReceivedFrom.Pretty() == host.ID().Pretty() {
+						// does not handler self route
+						continue
+					}
 					if err := json.Unmarshal(msg.Data, message); err != nil {
 						logrus.WithFields(logrus.Fields{
 							"ERROR": err,
@@ -188,7 +168,6 @@ func (p *Publisher) Publish(peerId string, subnets []string) {
 						"Interval": interval,
 					}).Info("")
 					ticker.Reset(time.Duration(interval) * time.Second)
-					// ticker = time.NewTicker(time.Duration(interval) * time.Second)
 				}
 			}(ticker)
 		}
@@ -196,26 +175,26 @@ func (p *Publisher) Publish(peerId string, subnets []string) {
 }
 
 func ForwardPacket(host host.Host, zone string, packets []byte) {
-	// if match then forward otherwise discard
-	// logrus.WithFields(logrus.Fields{
-	// 	"SIZE":    len(packets),
-	// 	"PACKETS": packets,
-	// }).Info("TODO:")
 	dst := waterutil.IPv4Destination(packets).String()
 	if peerId, found, err := RouteTable.GetByString(dst); err == nil && found {
 		// TODO: fetch stream using peerId
 		if stream, ok := Streams[peerId.(string)]; ok {
-			// TODO: appending ?
-			bytes := append(packets, "\n"...)
-			if n, err := stream.Write(bytes); n != len(bytes) || err != nil {
+			binary.Write(stream, binary.LittleEndian, uint16(len(packets)))
+			if n, err := stream.Write(packets); n != len(packets) || err != nil {
 				logrus.WithFields(logrus.Fields{
 					"ERROR": err,
+					"SIZE":  n,
 				}).Error("Forward to stream error")
+				if err.Error() == "stream reset" {
+					// TODO:
+					stream.Close()
+					delete(Streams, peerId.(string))
+				}
 			}
-			// TODO: retry
 		} else {
 			// make new stream
-			if s, ok := NewStreams(host, zone, strings.Split(peerId.(string), ","))[peerId.(string)]; ok {
+			// if s, ok := NewStreams(host, zone, strings.Split(peerId.(string), ","))[peerId.(string)]; ok {
+			if s := NewStream(host, zone, peerId.(string)); s != nil {
 				Streams[peerId.(string)] = s
 				ForwardPacket(host, zone, packets)
 			} else {

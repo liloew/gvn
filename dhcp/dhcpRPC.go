@@ -17,7 +17,7 @@ import (
 var (
 	ServerVIP string
 	MaxCIDR   string
-	Mtu int
+	Mtu       int
 	mu        sync.Mutex
 )
 
@@ -41,7 +41,7 @@ type DHCPService struct {
 	KV map[string]Response
 	// should be 192.168.1.1/24 for example
 	Cidr string
-	Mtu int
+	Mtu  int
 }
 
 func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) error {
@@ -78,7 +78,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 			// TODO: loop for an available ip
 		}
 		data.Ip = MaxCIDR
-		data.Mtu = 
+		data.Mtu = s.Mtu
 		data.ServerVIP = ServerVIP
 	}
 	s.KV[req.Id] = data

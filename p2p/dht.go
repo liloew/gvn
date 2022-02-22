@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"encoding/binary"
 	"time"
 
 	ds "github.com/ipfs/go-datastore"
@@ -75,8 +76,8 @@ func NewDHT(host host.Host, zone string, bootstraps []string) *dht.IpfsDHT {
 
 func NewStreams(host host.Host, zone string, peerIds []string) map[string]network.Stream {
 	// TODO: streams := make(map[string][]network.Stream)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, _ := context.WithCancel(context.Background())
+	// defer cancel()
 	streams := make(map[string]network.Stream)
 	conns := host.Network().Conns()
 	for _, conn := range conns {
@@ -99,6 +100,13 @@ func NewStreams(host host.Host, zone string, peerIds []string) map[string]networ
 				} else {
 					stream = ss
 				}
+				tpk := []byte("a")
+				binary.Write(ss, binary.LittleEndian, uint16(len(tpk)))
+				n, err := ss.Write(tpk)
+				logrus.WithFields(logrus.Fields{
+					"Size":  n,
+					"ERROR": err,
+				}).Info("first write state")
 			}
 			if stream != nil {
 				streams[conn.RemotePeer().Pretty()] = stream
@@ -134,6 +142,21 @@ func NewStreams(host host.Host, zone string, peerIds []string) map[string]networ
 	}
 	return streams
 }
+
+func NewStream(host host.Host, zone string, peerId string) network.Stream {
+	// TODO: streams := make(map[string][]network.Stream)
+	ctx, _ := context.WithCancel(context.Background())
+	// defer cancel()
+	if id, err := peer.Decode(peerId); err == nil {
+		stream, err := host.NewStream(ctx, id, protocol.ID(zone))
+		if err != nil {
+			return nil
+		}
+		return stream
+	}
+	return nil
+}
+
 func FindPeerIdsViaPubSub() []string {
 	return nil
 }

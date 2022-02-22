@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"os/signal"
@@ -298,19 +299,23 @@ func upCommand(cmd *cobra.Command) {
 
 func readData(stream network.Stream, rw *bufio.ReadWriter) {
 	for {
-		// bytes, err := rw.ReadBytes('\n')
-		bytes, isPrefix, err := rw.ReadLine()
+		var psize = make([]byte, 2)
+		if _, err := stream.Read(psize); err != nil {
+			stream.Close()
+		}
+		size := binary.LittleEndian.Uint16(psize)
+		bytes := make([]byte, size)
+		_, err := stream.Read(bytes[:size])
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"ERROR":  err,
-				"PREFIX": isPrefix,
-			}).Error("READY TO READ DATA")
-			return
+				"ERROR": err,
+			}).Error("Read data error")
+			continue
 		}
 		logrus.WithFields(logrus.Fields{
 			"LocalPeer":  stream.Conn().LocalPeer().Pretty(),
 			"RemotePeer": stream.Conn().RemotePeer().Pretty(),
-		}).Info("Read data from stream")
+		}).Debug("Read data from stream")
 		// Write to TUN
 		n, err := tun.Write(bytes)
 		if err != nil {
