@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -47,6 +48,7 @@ type Message struct {
 var (
 	RouteTable = iptree.New()
 	Streams    = make(map[string]network.Stream)
+	VIP        string
 )
 
 func init() {
@@ -98,13 +100,11 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 			}).Error("Subscribe error")
 		}
 
-		// BEGIN: publish routes broadcast and subscribe other peers
 		go func() {
 			for {
 				if msg, err := sub.Next(context.Background()); err == nil {
 					message := new(Message)
 					if msg.ReceivedFrom.Pretty() == host.ID().Pretty() {
-						// does not handler self route
 						continue
 					}
 					if err := json.Unmarshal(msg.Data, message); err != nil {
@@ -115,10 +115,8 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 						logrus.WithFields(logrus.Fields{
 							"Message": message,
 						}).Info("Receive message from topic")
-						// refresh local table
 						if message.MessageType == MessageTypeRoute {
 							// TODO: add MASQUERADE if self
-							// refresh route table - delete exist route if match then add table
 							tun.RefreshRoute(message.Subnets)
 							for _, subnet := range message.Subnets {
 								// Add will override the exist one
@@ -142,11 +140,12 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 	return nil
 }
 
-func (p *Publisher) Publish(peerId string, subnets []string) {
+func (p *Publisher) Publish(peerId string, vip string, subnets []string) {
 	if len(subnets) > 0 {
 		message := &Message{
 			Id:          peerId,
 			MessageType: MessageTypeRoute,
+			Vip:         vip,
 			Subnets:     subnets,
 		}
 		if bytes, err := json.Marshal(message); err == nil {
@@ -174,10 +173,9 @@ func (p *Publisher) Publish(peerId string, subnets []string) {
 	}
 }
 
-func ForwardPacket(host host.Host, zone string, packets []byte) {
-	dst := waterutil.IPv4Destination(packets).String()
-	if peerId, found, err := RouteTable.GetByString(dst); err == nil && found {
-		// TODO: fetch stream using peerId
+func ForwardPacket(host host.Host, zone string, packets []byte, vipNet *net.IPNet) {
+	dst := waterutil.IPv4Destination(packets)
+	if peerId, found, err := RouteTable.GetByString(dst.String()); err == nil && found {
 		if stream, ok := Streams[peerId.(string)]; ok {
 			binary.Write(stream, binary.LittleEndian, uint16(len(packets)))
 			if n, err := stream.Write(packets); n != len(packets) || err != nil {
@@ -186,17 +184,15 @@ func ForwardPacket(host host.Host, zone string, packets []byte) {
 					"SIZE":  n,
 				}).Error("Forward to stream error")
 				if err.Error() == "stream reset" {
-					// TODO:
 					stream.Close()
 					delete(Streams, peerId.(string))
 				}
 			}
 		} else {
 			// make new stream
-			// if s, ok := NewStreams(host, zone, strings.Split(peerId.(string), ","))[peerId.(string)]; ok {
 			if s := NewStream(host, zone, peerId.(string)); s != nil {
 				Streams[peerId.(string)] = s
-				ForwardPacket(host, zone, packets)
+				ForwardPacket(host, zone, packets, vipNet)
 			} else {
 				logrus.WithFields(logrus.Fields{
 					"ERROR": err,

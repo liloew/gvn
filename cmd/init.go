@@ -43,14 +43,14 @@ type Device struct {
 }
 
 type Config struct {
-	Id     string `yaml:"id,omitempty"`
-	Port   uint   `yaml:"port,omitempty"`
-	Mode   MODE   `yaml:"mode,omitempty"`
-	Server string `yaml:"server,omitempty"`
-	Dev    Device `yaml:"dev,omitempty"`
-	Protol string `yaml:"protocol"`
-	PriKey string `yaml:"priKey,omitempty"`
-	PubKey string `yaml:"pubKey,omitempty"`
+	Id      string `yaml:"id,omitempty"`
+	Port    uint   `yaml:"port,omitempty"`
+	Mode    MODE   `yaml:"mode,omitempty"`
+	Server  string `yaml:"server,omitempty"`
+	Dev     Device `yaml:"dev,omitempty"`
+	Version string `yaml:"protocol"`
+	PriKey  string `yaml:"priKey,omitempty"`
+	PubKey  string `yaml:"pubKey,omitempty"`
 }
 
 // initCmd represents the init command
@@ -98,7 +98,7 @@ func init() {
 	initCmd.Flags().BoolP("force", "f", false, "force overide the file")
 	initCmd.Flags().BoolP("server", "s", false, "server mode")
 	initCmd.Flags().UintP("port", "", 6543, "the port all the other nodes connect to")
-	initCmd.Flags().StringP("protocol", "", "/gvn/1.0.0", "the protocol support currently")
+	initCmd.Flags().StringP("version", "", "1.0.0", "the version current in use")
 	initCmd.Flags().StringP("devname", "", "", "the TUN device name, recommend using utun[\\d] for cross platform, utun3 for example")
 	initCmd.Flags().StringP("subnets", "", "", "the subnets traffice through this node")
 	initCmd.Flags().UintP("mtu", "", 1500, "the MUT will be used in TUN device")
@@ -142,12 +142,10 @@ func parseConfig(cmd cobra.Command, config *Config) {
 		dev.Mtu = mtu
 	}
 	if subnets, err := cmd.Flags().GetString("subnets"); err == nil {
-		// sbs := make([]string, 0)
-		// sbs = append(sbs, strings.Split(subnets, ",")...)
 		dev.Subnets = append(dev.Subnets, strings.Split(subnets, ",")...)
 	}
-	if protol, err := cmd.Flags().GetString("protocol"); err == nil {
-		config.Protol = protol
+	if version, err := cmd.Flags().GetString("version"); err == nil {
+		config.Version = version
 	}
 	config.Dev = dev
 }

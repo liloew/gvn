@@ -19,8 +19,10 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,6 +55,7 @@ to quickly create a Cobra application.`,
 		},
 	}
 	mainDev tun.Device
+	pub     *p2p.Publisher
 )
 
 func init() {
@@ -79,8 +82,9 @@ func upCommand(cmd *cobra.Command) {
 		"ID":    host.ID().Pretty(),
 		"Addrs": host.Addrs(),
 	}).Info("Peer info")
-	zone := viper.GetString("protocol")
-	// BEGIN: STREAM HANDLER
+
+	zone := fmt.Sprintf("/gvn/%s", viper.GetString("version"))
+	rpcZone := fmt.Sprintf("/rpc/%s", viper.GetString("version"))
 	host.SetStreamHandler(protocol.ID(zone), func(stream network.Stream) {
 		logrus.WithFields(logrus.Fields{
 			"LocalPeer":  stream.Conn().LocalPeer(),
@@ -92,7 +96,7 @@ func upCommand(cmd *cobra.Command) {
 		rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
 		go readData(stream, rw)
 	})
-	// END: STREAM HANDLER
+
 	var bootstraps []string
 	if MODE(viper.GetUint("mode")) == MODECLIENT {
 		// start dht in server mode
@@ -102,19 +106,20 @@ func upCommand(cmd *cobra.Command) {
 		for _, addr := range host.Addrs() {
 			bootstraps = append(bootstraps, fmt.Sprintf("%s/p2p/%s", addr.String(), host.ID().Pretty()))
 		}
-		dhcp.NewRPCServer(host, zone, viper.GetString("dev.vip"), viper.GetInt("dev.mtu"))
+		dhcp.NewRPCServer(host, rpcZone, viper.GetString("dev.vip"), viper.GetInt("dev.mtu"))
 		// auto config in server mode
 		devChan <- tun.Device{
-			Name:      viper.GetString("dev.name"),
-			Ip:        viper.GetString("dev.vip"),
-			Mtu:       viper.GetInt("dev.mtu"),
-			Subnets:   viper.GetStringSlice("dev.subnets"),
+			Name: viper.GetString("dev.name"),
+			Ip:   viper.GetString("dev.vip"),
+			Mtu:  viper.GetInt("dev.mtu"),
+			// Subnets:   viper.GetStringSlice("dev.subnets"),
 			ServerVIP: viper.GetString("dev.vip"),
 			Port:      viper.GetUint("port"),
 		}
 	}
 	p2p.NewDHT(host, zone, bootstraps)
-	// BEGIN: DHCP for client mode
+
+	// DHCP for client mode
 	if MODE(viper.GetUint("mode")) == MODECLIENT {
 		go func() {
 			ticker := time.NewTicker(10 * time.Second)
@@ -124,116 +129,79 @@ func upCommand(cmd *cobra.Command) {
 					Name:    viper.GetString("dev.name"),
 					Subnets: viper.GetStringSlice("dev.subnets"),
 				}
-				res := dhcp.NewRPCClient(host, zone, viper.GetString("server"), req)
-				logrus.WithFields(logrus.Fields{
-					"RES": res,
-				}).Info("DHCP - Got IP")
-				// TODO: if rs OK and push to chan
-				ticker.Stop()
-				logrus.WithFields(logrus.Fields{
-					"res": res,
-					"req": req,
-				}).Info("RPC - Client received data")
-				devChan <- tun.Device{
-					Name:      req.Name,
-					Ip:        res.Ip,
-					Mtu:       res.Mtu,
-					Subnets:   res.Subnets,
-					ServerVIP: res.ServerVIP,
+				if client, res := dhcp.NewRPCClient(host, rpcZone, viper.GetString("server"), req); client != nil {
+					ticker.Stop()
+					logrus.WithFields(logrus.Fields{
+						"res": res,
+						"req": req,
+					}).Info("RPC - Client received data")
+					devChan <- tun.Device{
+						Name: req.Name,
+						Ip:   res.Ip,
+						Mtu:  res.Mtu,
+						// ignore subnets because of self did't forward it to TUN
+						// Subnets:   res.Subnets,
+						ServerVIP: res.ServerVIP,
+					}
+
+					// refresh local VIP table
+					var ress []dhcp.Response
+					if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
+						for _, r := range ress {
+							logrus.WithFields(logrus.Fields{
+								"VIP": r.Ip,
+								"ID":  r.Id,
+							}).Debug("Refresh local vip table")
+							p2p.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+						}
+					}
 				}
 			}
 		}()
 	}
 	// END: DHCP
 	go p2p.FindPeerIdsViaDHT(host, zone)
-	// TODO: find peers
-	// peerIds := p2p.FindPeerIds()
-	// peerIds, _ := cmd.Flags().GetString("peers")
-	// logrus.WithFields(logrus.Fields{
-	// 	"PEERS": peerIds,
-	// }).Info("")
-	// streams := p2p.NewStreams(host, zone, strings.Split(peerIds, ","))
-	// BEGIN: DEBUG
-	// for _, peerId := range strings.Split(peerIds, ",") {
-	// 	if stream, ok := streams[peerId]; ok {
-	// 		for i := 0; i < 3; i++ {
-	// 			// read until new line
-	// 			bytes := []byte(fmt.Sprintf("%d", i))
-	// 			bytes = append(bytes, "\n"...)
-	// 			stream.Write(bytes)
-	// 		}
-	// 	}
-	// }
-	if pub := p2p.NewPubSub(host, "route"); pub != nil {
-		pub.Publish(host.ID().Pretty(), config.Dev.Subnets)
-	}
-	/*
-		// BEGIN: handler route PubSub
-		topic, sub := p2p.NewPubSub(host, "route")
-		if topic != nil && sub != nil {
-			message := &p2p.Message{
-				Id:          host.ID().Pretty(),
-				MessageType: p2p.MessageTypeOnline,
-				Subnets:     config.Dev.Subnets,
-			}
-			if bytes, err := json.Marshal(message); err == nil {
-				ticker := time.NewTicker(10 * time.Second)
-				go func(tk *time.Ticker) {
-					interval := 10
-					for {
-						select {
-						case <-tk.C:
-							if err := topic.Publish(context.Background(), bytes); err != nil {
-								logrus.WithFields(logrus.Fields{
-									"ERROR":   err,
-									"Message": message,
-								}).Error("Publish message from to topic error")
-							}
-							if interval < 30*60 {
-								// half of hour for the longest
-								interval *= 2
-							}
-							ticker = time.NewTicker(time.Duration(interval) * time.Second)
-						}
-					}
-				}(ticker)
-			}
-			go func() {
-				for {
-					if msg, err := sub.Next(context.Background()); err == nil {
-						message := new(p2p.Message)
-						if err := json.Unmarshal(msg.Data, message); err != nil {
-							logrus.WithFields(logrus.Fields{
-								"ERROR": err,
-							}).Error("Parse message from topic error")
-						} else {
-							logrus.WithFields(logrus.Fields{
-								"Message": message,
-							}).Info("Receive message from topic")
-							if message.MessageType == p2p.MessageTypeRoute {
-								// TODO: add MASQUERADE if self
-								// refresh route table - delete exist route if match then add table
-								tun.RefreshRoute(message.Subnets)
-							}
-						}
-					} else {
-						logrus.WithFields(logrus.Fields{
-							"ERROR": err,
-						}).Error("Subscribe error")
-					}
-				}
-			}()
-		}
-		// END: handler route PubSub
-	*/
+	pub = p2p.NewPubSub(host, "route")
 
-	select {
-	case dev := <-devChan:
-		// BEGIN: TUN
-		mainDev = dev
-		tun.NewTun(dev)
-		// avoid create duplicate
-		close(devChan)
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		for sig := range c {
+			switch sig {
+			case syscall.SIGINT:
+				// exit when receive ctrl+c
+				logrus.WithFields(logrus.Fields{
+					"SIG": sig,
+				}).Info("Exit for SIGINT")
+				tun.Close(mainDev)
+				os.Exit(0)
+			case syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT:
+				logrus.WithFields(logrus.Fields{
+					"SIG": sig,
+				}).Info("Receive SIGHUP/SIGTERM/SIGQUIT but ignore currently")
+			default:
+				logrus.WithFields(logrus.Fields{
+					"SIG": sig,
+				}).Info("Default ignore current SIG")
+			}
+		}
+	}()
+
+	mainDev = <-devChan
+	tun.NewTun(mainDev)
+	// avoid create duplicate
+	close(devChan)
+	vip := strings.Split(mainDev.Ip, "/")[0]
+	if pub != nil {
+		pub.Publish(host.ID().Pretty(), vip, config.Dev.Subnets)
+	}
+	_, vipNet, err := net.ParseCIDR(mainDev.Ip)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+		}).Fatal("Device VIP error")
+	}
+	go func() {
 		for {
 			var frame ethernet.Frame
 			frame.Resize(int(config.Dev.Mtu))
@@ -250,51 +218,16 @@ func upCommand(cmd *cobra.Command) {
 					logrus.WithFields(logrus.Fields{
 						"SRC": waterutil.IPv4Source(frame).String(),
 						"DST": waterutil.IPv4Destination(frame).String(),
-					}).Info("TUN - Packet SRC and DST")
-					if waterutil.IPv4Source(frame).String() == waterutil.IPv4Destination(frame).String() {
-						// FIXME: need't check src and dst ?
-					} else {
-						// TODO: froward to exactlly socket
-						// for id, stream := range streams {
-						// 	// TODO: check id and route
-						// 	if id != "" {
-						// 		bytes := append(frame, "\n"...)
-						// 		stream.Write(bytes)
-						// 	}
-						// }
-						p2p.ForwardPacket(host, zone, frame)
+					}).Debug("TUN - Packet SRC and DST")
+					if waterutil.IPv4Source(frame).String() != waterutil.IPv4Destination(frame).String() {
+						p2p.ForwardPacket(host, zone, frame, vipNet)
 					}
 				}
 			}
 		}
-		// END: TUN
-	}
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM,
-		syscall.SIGQUIT)
-	go func() {
-		for sig := range c {
-			switch sig {
-			case syscall.SIGINT:
-				// TODO: ctrl+c - 退出
-				logrus.WithFields(logrus.Fields{
-					"SIG": sig,
-				}).Info("Exit for SIGINT")
-				tun.Close(mainDev)
-				os.Exit(0)
-			case syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT:
-				logrus.WithFields(logrus.Fields{
-					"SIG": sig,
-				}).Info("Receive SIGHUP/SIGTERM/SIGQUIT but ignore currently")
-			default:
-				logrus.WithFields(logrus.Fields{
-					"SIG": sig,
-				}).Info("默认信号")
-			}
-		}
 	}()
-	ch := make(chan int, 1)
-	<-ch
+
+	select {}
 }
 
 func readData(stream network.Stream, rw *bufio.ReadWriter) {
@@ -310,6 +243,9 @@ func readData(stream network.Stream, rw *bufio.ReadWriter) {
 			logrus.WithFields(logrus.Fields{
 				"ERROR": err,
 			}).Error("Read data error")
+			if err.Error() == "EOF" {
+				break
+			}
 			continue
 		}
 		logrus.WithFields(logrus.Fields{

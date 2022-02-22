@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	rpc "github.com/libp2p/go-libp2p-gorpc"
+	"github.com/liloew/altgvn/p2p"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/sirupsen/logrus"
 )
@@ -19,7 +20,12 @@ var (
 	MaxCIDR   string
 	Mtu       int
 	mu        sync.Mutex
+	client    *rpc.Client
+	serverId  peer.ID
 )
+
+type RPC struct {
+}
 
 type Request struct {
 	Id      string
@@ -47,7 +53,7 @@ type DHCPService struct {
 func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) error {
 	logrus.WithFields(logrus.Fields{
 		"Request": req,
-	}).Info("RPC - request")
+	}).Info("RPC call Clients")
 	mu.Lock()
 	data, ok := s.KV[req.Id]
 	if !ok {
@@ -92,6 +98,26 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	logrus.WithFields(logrus.Fields{
 		"res": res,
 	}).Info("RPC - Client requested data")
+
+	// vip/mask -> vip/32
+	p2p.RouteTable.AddByString(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
+	mu.Unlock()
+	return nil
+}
+
+func (s *DHCPService) Clients(ctx context.Context, req Request, res *[]Response) error {
+	mu.Lock()
+	for _, v := range s.KV {
+		r := Response{
+			Id:        v.Id,
+			Name:      v.Name,
+			Ip:        v.Ip,
+			Mtu:       v.Mtu,
+			Subnets:   v.Subnets,
+			ServerVIP: v.ServerVIP,
+		}
+		*res = append(*res, r)
+	}
 	mu.Unlock()
 	return nil
 }
@@ -104,20 +130,40 @@ func NewRPCServer(host host.Host, zone string, cidr string, mtu int) {
 			"ERROR": err,
 		}).Panic("RPC - build RPC service error")
 	}
+	// server register
+	mu.Lock()
+	service.KV[host.ID().Pretty()] = Response{
+		Id:        host.ID().Pretty(),
+		Ip:        cidr,
+		Mtu:       mtu,
+		ServerVIP: cidr,
+	}
+	mu.Unlock()
 }
 
-func NewRPCClient(host host.Host, zone string, server string, req Request) Response {
-	client := rpc.NewClient(host, protocol.ID(zone))
+func NewRPCClient(host host.Host, zone string, server string, req Request) (*rpc.Client, Response) {
+	client = rpc.NewClient(host, protocol.ID(zone))
 	var res Response
 	if ma, err := multiaddr.NewMultiaddr(server); err == nil {
 		if addr, err := peer.AddrInfoFromP2pAddr(ma); err == nil {
+			serverId = addr.ID
 			if err := client.Call(addr.ID, "DHCPService", "DHCP", req, &res); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"ERROR": err,
 				}).Error("RPC - call RPC serveice error")
 			}
-			return res
+			return client, res
 		}
 	}
-	return res
+	return nil, res
+}
+
+func Call(svcName string, svcMethod string, req Request, res interface{}) error {
+	if err := client.Call(serverId, svcName, svcMethod, req, &res); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"ERROR": err,
+		}).Error("RPC - call RPC serveice error")
+		return err
+	}
+	return nil
 }

@@ -144,7 +144,6 @@ func NewStreams(host host.Host, zone string, peerIds []string) map[string]networ
 }
 
 func NewStream(host host.Host, zone string, peerId string) network.Stream {
-	// TODO: streams := make(map[string][]network.Stream)
 	ctx, _ := context.WithCancel(context.Background())
 	// defer cancel()
 	if id, err := peer.Decode(peerId); err == nil {
@@ -165,32 +164,6 @@ func FindPeerIdsViaDHT(host host.Host, zone string) []string {
 	// TODO: check kdht nil
 	// TODO: multiplex the connection
 	peerIds := make([]string, 0)
-	/*
-		peers := kdht.Host().Network().Peers()
-		for _, peer := range peers {
-			peerIds = append(peerIds, peer.Pretty())
-		}
-	*/
-	// BEGIN: DEBUG
-	ticker := time.NewTicker(20 * time.Second)
-	go func(tk *time.Ticker) {
-		for _ = range tk.C {
-			// TODO:
-			peers, err := routingDiscovery.FindPeers(context.Background(), zone)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"ERROR": err,
-				}).Error("Error at timer")
-				continue
-			}
-			for peer := range peers {
-				logrus.WithFields(logrus.Fields{
-					"PEER": peer.ID.Pretty(),
-				}).Debug("Peers at timer")
-			}
-		}
-	}(ticker)
-	// END: DEBUG
 	if routingDiscovery != nil {
 		peers, err := routingDiscovery.FindPeers(context.Background(), zone)
 		if err != nil {
@@ -205,57 +178,4 @@ func FindPeerIdsViaDHT(host host.Host, zone string) []string {
 		return peerIds
 	}
 	return peerIds
-	/*
-		if host.Network().Connectedness(peerId) != network.Connected {
-			addrs, err := kdht.FindPeer(ctx, peerId)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"ID":    id,
-					"addrs": addrs,
-				}).Error("unable match peer")
-				continue
-			}
-			stream, err := host.NewStream(ctx, addrs.ID, protocol.ID(zone))
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"ID":       id,
-					"addrs":    addrs,
-					"protocol": zone,
-				}).Error("new stream to peer error")
-				continue
-			}
-			streams[id] = stream
-		} else if _, ok := streams[id]; !ok {
-			adrs1 := host.Network().Peerstore().Addrs(peerId)
-			logrus.WithFields(logrus.Fields{
-				"ID":       id,
-				"addrs1":   adrs1,
-				"protocol": zone,
-			}).Error("new stream to peer error")
-			for _, addrs := range adrs1 {
-				adr, err := multiaddr.NewMultiaddr(fmt.Sprintf("%s%s%s", addrs.String(), protocol.ID(zone), id))
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"ID":       id,
-						"addrs":    addrs,
-						"protocol": zone,
-						"ERROR":    err,
-						"ADDR":     adr,
-					}).Error("Addr error")
-				}
-				stream, err := host.NewStream(ctx, peerId, protocol.ID(zone))
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"ID":       id,
-						"addrs":    addrs,
-						"protocol": zone,
-						"ERROR":    err,
-					}).Error("new stream to peer error")
-					continue
-				}
-				streams[id] = stream
-				break
-			}
-		}
-	*/
 }
