@@ -10,7 +10,7 @@ require (
 	github.com/libp2p/go-libp2p-gorpc v0.1.4
 	github.com/libp2p/go-libp2p-kad-dht v0.15.0
 	github.com/libp2p/go-libp2p-pubsub v0.6.1
-	github.com/liloew/wireguard-go v0.0.0-20220220075431-ee1469850ac2
+	github.com/liloew/wireguard-go v0.0.0-20220224014633-9cd745e6f114
 	github.com/multiformats/go-multiaddr v0.4.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091

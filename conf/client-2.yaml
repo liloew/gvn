@@ -1,13 +1,11 @@
 id: QmZiwVDDPhByWJsk5tJqajnPFjvM15KV1NuasSb9WN3ZJq
-server: "/ip4/172.168.1.120/tcp/60616/p2p/QmSGY3kKiJ3qHhhNeb3bMJgch7mo6HbK9zAhyLDyZCCjtz"
+server: "/ip4/172.168.1.134/tcp/6543/p2p/QmSyYjoecj3aQ46TAWSEAmork3CRS51Y2SZCcEsiX8XeAx"
 dev:
   name: utun4
   mtu: 1420
   subnets:
-  - 10.30.20.0/24
-  - 172.16.13.0/24
   - 10.30.21.0/24
-protocol: /gvn/1.0.0
+version: 1.0.0
 priKey: !!binary |
   CAASqAkwggSkAgEAAoIBAQDjbJ/cot0GYydpfzQ5B1KZsQ6OgcVZoBMUXRn81btTJlFCqZ
   EFNBfx0Bb5Y+4HN4kwcep2jOMIOpPt+MPbIvNouepxndpAaT3cFi6uyTfbvR3HDKttQdoz

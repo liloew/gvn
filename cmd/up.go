@@ -144,16 +144,26 @@ func upCommand(cmd *cobra.Command) {
 						ServerVIP: res.ServerVIP,
 					}
 
+					// TODO: sleep or make sure call after tun.New
 					// refresh local VIP table
 					var ress []dhcp.Response
 					if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
+						subnets := make([]string, 0)
 						for _, r := range ress {
 							logrus.WithFields(logrus.Fields{
-								"VIP": r.Ip,
-								"ID":  r.Id,
-							}).Debug("Refresh local vip table")
+								"VIP":    r.Ip,
+								"ID":     r.Id,
+								"Subnet": r.Subnets,
+							}).Info("Refresh local vip table")
 							p2p.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+							if r.Id != host.ID().Pretty() {
+								subnets = append(subnets, r.Subnets...)
+							}
 						}
+						logrus.WithFields(logrus.Fields{
+							"subnets": subnets,
+						}).Info("Refresh subnets")
+						tun.RefreshRoute(subnets)
 					}
 				}
 			}
@@ -172,6 +182,7 @@ func upCommand(cmd *cobra.Command) {
 				// exit when receive ctrl+c
 				logrus.WithFields(logrus.Fields{
 					"SIG": sig,
+					"dev": mainDev,
 				}).Info("Exit for SIGINT")
 				tun.Close(mainDev)
 				os.Exit(0)
@@ -188,6 +199,9 @@ func upCommand(cmd *cobra.Command) {
 	}()
 
 	mainDev = <-devChan
+	logrus.WithFields(logrus.Fields{
+		"dev": mainDev,
+	}).Info("Create TUN device")
 	tun.NewTun(mainDev)
 	// avoid create duplicate
 	close(devChan)
@@ -238,10 +252,11 @@ func readData(stream network.Stream, rw *bufio.ReadWriter) {
 		}
 		size := binary.LittleEndian.Uint16(psize)
 		bytes := make([]byte, size)
-		_, err := stream.Read(bytes[:size])
-		if err != nil {
+		n, err := stream.Read(bytes[:size])
+		if err != nil || n <= 0 {
 			logrus.WithFields(logrus.Fields{
 				"ERROR": err,
+				"SIZE":  n,
 			}).Error("Read data error")
 			if err.Error() == "EOF" {
 				break
@@ -253,7 +268,7 @@ func readData(stream network.Stream, rw *bufio.ReadWriter) {
 			"RemotePeer": stream.Conn().RemotePeer().Pretty(),
 		}).Debug("Read data from stream")
 		// Write to TUN
-		n, err := tun.Write(bytes)
+		n, err = tun.Write(bytes)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"ERROR": err,

@@ -2,6 +2,7 @@ package tun
 
 import (
 	"fmt"
+	"runtime"
 
 	tun "github.com/liloew/wireguard-go/tun"
 	"github.com/sirupsen/logrus"
@@ -40,14 +41,17 @@ func NewTun(dev Device) {
 }
 
 func Read(frame []byte) (int, error) {
-	// TODO: Linux IF_NO_PI +4 otherwise 0
-	n, err := device.Read(frame, 0)
-	return n, err
+	if runtime.GOOS == "darwin" {
+		return device.Read(frame, 4)
+	}
+	return device.Read(frame, 0)
 }
 
 func Write(frame ethernet.Frame) (int, error) {
-	n, err := device.Write(frame, 0)
-	return n, err
+	if runtime.GOOS == "darwin" {
+		return device.Write(frame, 4)
+	}
+	return device.Write(frame, 0)
 }
 
 func Close(dev Device) error {

@@ -23,7 +23,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "main.go",
-            "args": ["up", "-c", "conf/client-1.yaml", "--peers", "QmSGY3kKiJ3qHhhNeb3bMJgch7mo6HbK9zAhyLDyZCCjtz"],
+            "args": ["up", "-c", "/tmp/ALTGVN/client.yaml"],
         }, {
             "name": "Debug cobra cli - up server",
             "type": "go",

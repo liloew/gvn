@@ -7,7 +7,7 @@ dev:
   mtu: 1500
   subnets:
     #- "10.30.22.0/24"
-protocol: /gvn/1.0.0
+version: 1.0.0
 priKey: !!binary |
   CAASpwkwggSjAgEAAoIBAQC3pxvCIViNopIFRoDRvngT3AEfPheSYuPbd8I1AZMTKoqgip
   1dlimNzNQ7njOiPAapWJNm1CGi/3/GouHqJEe22wOuoSR7utgRZ9Hsz+Pa0oKElbInG2SF

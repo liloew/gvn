@@ -48,7 +48,7 @@ type Config struct {
 	Mode    MODE   `yaml:"mode,omitempty"`
 	Server  string `yaml:"server,omitempty"`
 	Dev     Device `yaml:"dev,omitempty"`
-	Version string `yaml:"protocol"`
+	Version string `yaml:"version"`
 	PriKey  string `yaml:"priKey,omitempty"`
 	PubKey  string `yaml:"pubKey,omitempty"`
 }

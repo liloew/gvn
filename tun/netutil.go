@@ -169,16 +169,16 @@ then
     export IPOPR="$(which ip)"
     export IPTABLES="$(which iptables)"
 
-    #echo "${IPOPR} route del ${GVN_IP}" >> "${LOGFILE}"
-    #"${IPOPR}" route del "${GVN_IP}"
+    #echo "${IPOPR} route del ${GVN_VIP}" >> "${LOGFILE}"
+    #"${IPOPR}" route del "${GVN_VIP}"
     for ROU in ${ROUTES}
     do
        echo "${IPOPR} route del ${ROU}" >> "${LOGFILE}"
        "${IPOPR}" route del "${ROU}"
     done
 
-    echo "${IPOPR} addr del ${GVN_IP} dev $INTERFACE"  >> "${LOGFILE}"
-    "${IPOPR}" addr del "${GVN_IP}" dev $INTERFACE
+    echo "${IPOPR} addr del ${GVN_VIP} dev $INTERFACE"  >> "${LOGFILE}"
+    "${IPOPR}" addr del "${GVN_VIP}" dev $INTERFACE
     echo "${IPOPR} link set $INTERFACE down" >> "${LOGFILE}"
     "${IPOPR}" link set $INTERFACE down
     #if [ "${MODE}" == "server" ]
@@ -202,16 +202,16 @@ then
         # 当前节点作为中转路由使用
         #"${IPTABLES}" -t nat -D POSTROUTING -s "${LAN_ZONE}" -o "${INTERFACE}" -j MASQUERADE
         #echo "${IPTABLES} -t nat -D POSTROUTING -s ${LAN_ZONE} -o ${INTERFACE} -j MASQUERADE" >> "${LOGFILE}"
-        echo "${IPTABLES} -t nat -D POSTROUTING -s ${GVN_IP} ! -o ${INTERFACE} -j MASQUERADE" >> "${LOGFILE}"
-        "${IPTABLES}" -t nat -D POSTROUTING -s "${GVN_IP}" ! -o "${INTERFACE}" -j MASQUERADE
+        echo "${IPTABLES} -t nat -D POSTROUTING -s ${GVN_VIP} ! -o ${INTERFACE} -j MASQUERADE" >> "${LOGFILE}"
+        "${IPTABLES}" -t nat -D POSTROUTING -s "${GVN_VIP}" ! -o "${INTERFACE}" -j MASQUERADE
     #fi
 elif [ "${OS}" == "Darwin" ]
     export IPOPR="$(which ifconfig)"
     export ROUTE="$(which route)"
     echo "sudo ${IPOPR} $INTERFACE down" >> "${LOGFILE}"
     sudo "${IPOPR}" $INTERFACE down
-    echo "sudo ${ROUTE} delete ${GVN_IP}" >> "${LOGFILE}"
-    sudo "${ROUTE}" delete "${GVN_IP}"
+    echo "sudo ${ROUTE} delete ${GVN_VIP}" >> "${LOGFILE}"
+    sudo "${ROUTE}" delete "${GVN_VIP}"
     for ROU in ${ROUTES}
     do
         echo "sudo ${ROUTE} delete ${ROU}" >> "${LOGFILE}"
