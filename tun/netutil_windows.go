@@ -54,11 +54,11 @@ func ConfigAddr(dev Device) error {
 		"COMMAND": content,
 	}).Debug("Execute command")
 
-	if err := RunCommand(tmpfile.Name()); err == nil {
-		// remove if success otherwise for debug
-		defer os.Remove(tmpfile.Name())
+	if err := RunCommand(tmpfile.Name()); err != nil {
+		return err
 	}
-
+	// remove if success otherwise for debug
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 
@@ -97,9 +97,10 @@ func RemoveRoute(subnets []string) error {
 		return err
 	}
 
-	if err := RunCommand(tmpfile.Name()); err == nil {
-		defer os.Remove(tmpfile.Name())
+	if err := RunCommand(tmpfile.Name()); err != nil {
+		return err
 	}
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 
@@ -143,10 +144,10 @@ func AddRoute(subnets []string) error {
 		return err
 	}
 
-	if err := RunCommand(tmpfile.Name()); err == nil {
-		defer os.Remove(tmpfile.Name())
+	if err := RunCommand(tmpfile.Name()); err != nil {
+		return err
 	}
-
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -134,7 +135,7 @@ fi`
 		return err
 	}
 	// remove if success otherwise for debug
-	// defer os.Remove(tmpfile.Name())
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 
@@ -246,7 +247,7 @@ fi`
 		return err
 	}
 	// remove if success otherwise for debug
-	// defer os.Remove(tmpfile.Name())
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 
@@ -319,7 +320,7 @@ fi`
 		return err
 	}
 	// remove if success otherwise for debug
-	// defer os.Remove(tmpfile.Name())
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 
@@ -391,7 +392,7 @@ fi`
 		return err
 	}
 	// remove if success otherwise for debug
-	// defer os.Remove(tmpfile.Name())
+	defer os.Remove(tmpfile.Name())
 	return nil
 }
 

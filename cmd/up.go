@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -30,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/liloew/altgvn/dhcp"
 	"github.com/liloew/altgvn/p2p"
+	"github.com/liloew/altgvn/route"
 	"github.com/liloew/altgvn/tun"
 	"github.com/sirupsen/logrus"
 	"github.com/songgao/packets/ethernet"
@@ -93,8 +93,7 @@ func upCommand(cmd *cobra.Command) {
 			"RemoteAddr": stream.Conn().RemoteMultiaddr(),
 			"Protocol":   stream.Protocol(),
 		}).Info("handler new stream")
-		rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
-		go readData(stream, rw)
+		go readData(stream)
 	})
 
 	var bootstraps []string
@@ -155,7 +154,7 @@ func upCommand(cmd *cobra.Command) {
 								"ID":     r.Id,
 								"Subnet": r.Subnets,
 							}).Info("Refresh local vip table")
-							p2p.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+							route.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
 							if r.Id != host.ID().Pretty() {
 								subnets = append(subnets, r.Subnets...)
 							}
@@ -244,7 +243,7 @@ func upCommand(cmd *cobra.Command) {
 	select {}
 }
 
-func readData(stream network.Stream, rw *bufio.ReadWriter) {
+func readData(stream network.Stream) {
 	for {
 		var psize = make([]byte, 2)
 		if _, err := stream.Read(psize); err != nil {
@@ -258,10 +257,8 @@ func readData(stream network.Stream, rw *bufio.ReadWriter) {
 				"ERROR": err,
 				"SIZE":  n,
 			}).Error("Read data error")
-			if err.Error() == "EOF" {
-				break
-			}
-			continue
+			stream.Close()
+			break
 		}
 		logrus.WithFields(logrus.Fields{
 			"LocalPeer":  stream.Conn().LocalPeer().Pretty(),

@@ -14,10 +14,12 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/liloew/altgvn/dhcp"
+	"github.com/liloew/altgvn/route"
 	"github.com/liloew/altgvn/tun"
 	"github.com/sirupsen/logrus"
 	"github.com/songgao/water/waterutil"
-	"github.com/zmap/go-iptree/iptree"
+	"github.com/spf13/viper"
 )
 
 type MessageType uint
@@ -46,9 +48,8 @@ type Message struct {
 }
 
 var (
-	RouteTable = iptree.New()
-	Streams    = make(map[string]network.Stream)
-	VIP        string
+	Streams = make(map[string]network.Stream)
+	VIP     string
 )
 
 func init() {
@@ -104,9 +105,6 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 			for {
 				if msg, err := sub.Next(context.Background()); err == nil {
 					message := new(Message)
-					if msg.ReceivedFrom.Pretty() == host.ID().Pretty() {
-						continue
-					}
 					if err := json.Unmarshal(msg.Data, message); err != nil {
 						logrus.WithFields(logrus.Fields{
 							"ERROR": err,
@@ -116,12 +114,49 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 							"Message": message,
 						}).Info("Receive message from topic")
 						if message.MessageType == MessageTypeRoute {
+							if msg.ReceivedFrom.Pretty() == host.ID().Pretty() {
+								continue
+							}
 							// TODO: add MASQUERADE if self
 							tun.RefreshRoute(message.Subnets)
 							for _, subnet := range message.Subnets {
 								// Add will override the exist one
-								RouteTable.AddByString(strings.TrimSpace(subnet), message.Id)
+								route.RouteTable.AddByString(strings.TrimSpace(subnet), message.Id)
 							}
+						} else if message.MessageType == MessageTypeOnline {
+							// route.RouteTable.AddByString(strings.Split(message.Vip, "/")[0]+"/32", message.Id)
+							// refresh clients
+							if viper.GetUint("mode") == 1 {
+								// server
+								continue
+							} else {
+								req := dhcp.Request{}
+								var ress []dhcp.Response
+								if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
+									subnets := make([]string, 0)
+									for _, r := range ress {
+										if r.Id == host.ID().Pretty() {
+											continue
+										}
+										logrus.WithFields(logrus.Fields{
+											"VIP":    r.Ip,
+											"ID":     r.Id,
+											"Subnet": r.Subnets,
+										}).Info("Refresh local vip table")
+										route.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+										if r.Id != host.ID().Pretty() {
+											subnets = append(subnets, r.Subnets...)
+										}
+									}
+									logrus.WithFields(logrus.Fields{
+										"subnets": subnets,
+									}).Info("Refresh subnets")
+									tun.RefreshRoute(subnets)
+								}
+
+							}
+						} else if message.MessageType == MessageTypeOffline {
+							route.RouteTable.DeleteByString(strings.Split(message.Vip, "/")[0] + "/32")
 						}
 					}
 				} else {
@@ -141,41 +176,43 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 }
 
 func (p *Publisher) Publish(peerId string, vip string, subnets []string) {
+	message := &Message{
+		Id:          peerId,
+		MessageType: MessageTypeRoute,
+		Vip:         vip,
+	}
 	if len(subnets) > 0 {
-		message := &Message{
-			Id:          peerId,
-			MessageType: MessageTypeRoute,
-			Vip:         vip,
-			Subnets:     subnets,
-		}
-		if bytes, err := json.Marshal(message); err == nil {
-			ticker := time.NewTicker(10 * time.Second)
-			go func(tk *time.Ticker) {
-				interval := 10
-				for _ = range tk.C {
-					if err := p.pub.Publish(context.Background(), bytes); err != nil {
-						logrus.WithFields(logrus.Fields{
-							"ERROR":   err,
-							"Message": message,
-						}).Error("Publish message from to topic error")
-					}
-					if interval < 30*60 {
-						// half of hour for the longest
-						interval *= 2
-					}
+		message.Subnets = subnets
+	} else {
+		message.MessageType = MessageTypeOnline
+	}
+	if bytes, err := json.Marshal(message); err == nil {
+		ticker := time.NewTicker(10 * time.Second)
+		go func(tk *time.Ticker) {
+			interval := 10
+			for _ = range tk.C {
+				if err := p.pub.Publish(context.Background(), bytes); err != nil {
 					logrus.WithFields(logrus.Fields{
-						"Interval": interval,
-					}).Info("")
-					ticker.Reset(time.Duration(interval) * time.Second)
+						"ERROR":   err,
+						"Message": message,
+					}).Error("Publish message from to topic error")
 				}
-			}(ticker)
-		}
+				if interval < 30*60 {
+					// half of hour for the longest
+					interval *= 2
+				}
+				logrus.WithFields(logrus.Fields{
+					"Interval": interval,
+				}).Info("")
+				ticker.Reset(time.Duration(interval) * time.Second)
+			}
+		}(ticker)
 	}
 }
 
 func ForwardPacket(host host.Host, zone string, packets []byte, vipNet *net.IPNet) {
 	dst := waterutil.IPv4Destination(packets)
-	if peerId, found, err := RouteTable.GetByString(dst.String()); err == nil && found {
+	if peerId, found, err := route.RouteTable.GetByString(dst.String()); err == nil && found {
 		if stream, ok := Streams[peerId.(string)]; ok {
 			binary.Write(stream, binary.LittleEndian, uint16(len(packets)))
 			if n, err := stream.Write(packets); n != len(packets) || err != nil {

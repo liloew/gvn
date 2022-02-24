@@ -10,7 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	rpc "github.com/libp2p/go-libp2p-gorpc"
-	"github.com/liloew/altgvn/p2p"
+	"github.com/liloew/altgvn/route"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/sirupsen/logrus"
 )
@@ -100,7 +100,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	}).Info("RPC - Client requested data")
 
 	// vip/mask -> vip/32
-	p2p.RouteTable.AddByString(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
+	route.RouteTable.AddByString(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
 	mu.Unlock()
 	return nil
 }

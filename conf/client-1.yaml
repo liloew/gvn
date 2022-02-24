@@ -4,7 +4,7 @@ dev:
   name: utun4
   mtu: 1420
   subnets:
-  - 10.30.20.0/24
+  - 10.30.22.0/24
   - 172.16.13.0/24
 version: 1.0.0
 priKey: !!binary |
