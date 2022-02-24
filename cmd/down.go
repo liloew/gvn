@@ -25,16 +25,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// downCmd represents the down command
 var downCmd = &cobra.Command{
 	Use:   "down",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "stop gvn",
+	Long:  `Stop gvn through the pid or pid file (default)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var pid int
 		if p, err := cmd.Flags().GetUint32("pid"); err == nil && pid > 0 {
@@ -50,7 +44,14 @@ to quickly create a Cobra application.`,
 		logrus.WithFields(logrus.Fields{
 			"PID": pid,
 		}).Info("kill gvn process")
-		syscall.Kill(pid, syscall.SIGINT)
+		if p, err := os.FindProcess(pid); err == nil {
+			p.Signal(syscall.SIGINT)
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"ERROR": err,
+				"PID":   pid,
+			}).Error("Kill process error")
+		}
 	},
 }
 

@@ -57,13 +57,8 @@ type Config struct {
 var (
 	initCmd = &cobra.Command{
 		Use:   "init",
-		Short: "A brief description of your command",
-		Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+		Short: "generate gvn config file",
+		Long:  `Generate the gvn.yaml file for server and clients`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if _, err := os.Stat(viper.ConfigFileUsed()); err == nil {
 				if force, _ := cmd.Flags().GetBool("force"); !force {
