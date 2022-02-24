@@ -18,9 +18,11 @@ package cmd
 import (
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -183,6 +185,8 @@ func upCommand(cmd *cobra.Command) {
 					"SIG": sig,
 					"dev": mainDev,
 				}).Info("Exit for SIGINT")
+				filename := filepath.Join(os.TempDir(), "gvn.pid")
+				os.Remove(filename)
 				tun.Close(mainDev)
 				os.Exit(0)
 			case syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT:
@@ -239,6 +243,26 @@ func upCommand(cmd *cobra.Command) {
 			}
 		}
 	}()
+
+	// wirte pid file
+	filename := filepath.Join(os.TempDir(), "gvn.pid")
+	var pidfile *os.File
+	if pidfile, err = os.Create(filename); err != nil {
+		os.Remove(filename)
+		pidfile, _ = os.Create(filename)
+	}
+	if err := ioutil.WriteFile(pidfile.Name(), []byte(fmt.Sprintf("%v", os.Getpid())), 0664); err == nil {
+		logrus.WithFields(logrus.Fields{
+			"PID":  os.Getpid(),
+			"File": pidfile.Name(),
+		}).Info("Write pid file success")
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"PID":  os.Getpid(),
+			"File": pidfile.Name(),
+		}).Error("Write pid file error")
+	}
+	pidfile.Close()
 
 	select {}
 }

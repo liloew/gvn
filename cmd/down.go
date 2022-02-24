@@ -16,8 +16,12 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"syscall"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -32,20 +36,25 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("down called")
+		var pid int
+		if p, err := cmd.Flags().GetUint32("pid"); err == nil && pid > 0 {
+			pid = int(p)
+		} else {
+			filename := filepath.Join(os.TempDir(), "gvn.pid")
+			if buff, err := os.ReadFile(filename); err == nil {
+				if p, err := strconv.Atoi(string(buff)); err == nil {
+					pid = p
+				}
+			}
+		}
+		logrus.WithFields(logrus.Fields{
+			"PID": pid,
+		}).Info("kill gvn process")
+		syscall.Kill(pid, syscall.SIGINT)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(downCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// downCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// downCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	downCmd.Flags().Uint32P("pid", "p", 0, "the gvn process pid to be stop")
 }
