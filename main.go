@@ -16,7 +16,7 @@ limitations under the License.
 package main
 
 import (
-	"github.com/liloew/altgvn/cmd"
+	"github.com/liloew/gvn/cmd"
 )
 
 func main() {

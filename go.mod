@@ -1,4 +1,4 @@
-module github.com/liloew/altgvn
+module github.com/liloew/gvn
 
 go 1.16
 

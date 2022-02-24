@@ -26,7 +26,7 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var (
 	rootCmd = &cobra.Command{
-		Use:   "altgvn",
+		Use:   "gvn",
 		Short: "A brief description of your application",
 		Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your application. For example:
@@ -57,7 +57,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.altgvn.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.gvn.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -69,7 +69,7 @@ func initConfig() {
 	if cfgFile == "" {
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
-		cfgFile = filepath.Join(home, "altgvn.yaml")
+		cfgFile = filepath.Join(home, "gvn.yaml")
 		rootCmd.Flags().Set("config", cfgFile)
 	}
 	viper.SetConfigFile(cfgFile)
