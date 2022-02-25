@@ -16,9 +16,11 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -43,6 +45,14 @@ func Execute() {
 }
 
 func init() {
+	filename := filepath.Join(os.TempDir(), "gvn.log")
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Fprintln(os.Stderr, "Log file - "+file.Name())
+	logrus.SetOutput(file)
+
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
