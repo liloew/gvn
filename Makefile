@@ -29,7 +29,7 @@ linux:
 windows:
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o target/gvn-Windows-x86_64.exe main.go
 freebsd:
-	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o target/gvn-Freebsd-x86_64 main.go
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o target/gvn-FreeBSD-amd64 main.go
 clean:
 	rm -rf target
 format:
