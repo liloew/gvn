@@ -40,3 +40,9 @@ export PATH_TO_GVN="..."
 # client
 "${PATH_TO_TO_GVN}"/gvn-`uname`-`uname -m` up -c client.yaml
 ```
+
+---
+# Windows
+```
+Download the wintun.dll from the website and place it under %SYSTEM32% dir.
+```
