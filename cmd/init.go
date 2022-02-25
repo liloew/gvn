@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,12 +77,16 @@ var (
 				}
 				if f, err := os.Create(viper.ConfigFileUsed()); err == nil {
 					f.Write(vip)
+					logrus.WithFields(logrus.Fields{
+						"File": viper.ConfigFileUsed(),
+					}).Error("Generate config file successful")
+					fmt.Fprintf(os.Stderr, "Generate config file successful: %s", viper.ConfigFileUsed())
 					return
 				} else {
 					logrus.WithFields(logrus.Fields{
 						"ERROR": err,
 						"File":  viper.ConfigFileUsed(),
-					}).Error("Write to config file error")
+					}).Error("Generate config file error")
 				}
 			}
 		},

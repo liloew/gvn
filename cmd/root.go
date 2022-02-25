@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -45,13 +46,6 @@ func Execute() {
 }
 
 func init() {
-	filename := filepath.Join(os.TempDir(), "gvn.log")
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Fprintln(os.Stderr, "Log file - "+file.Name())
-	logrus.SetOutput(file)
 
 	cobra.OnInitialize(initConfig)
 
@@ -60,6 +54,7 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.gvn.yaml)")
+	rootCmd.PersistentFlags().BoolP("stdout", "", false, "logs to the stdout")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -68,6 +63,20 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+
+	filename := filepath.Join(os.TempDir(), "gvn.log")
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Fprintln(os.Stderr, "Log file - "+file.Name())
+	if std, _ := rootCmd.Flags().GetBool("stdout"); std {
+		writer := io.MultiWriter(os.Stdout, file)
+		logrus.SetOutput(writer)
+	} else {
+		logrus.SetOutput(file)
+	}
+
 	if cfgFile == "" {
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
