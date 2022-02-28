@@ -75,10 +75,6 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 		data.Id = req.Id
 		data.Name = req.Name
 		data.Subnets = req.Subnets
-		// TODO: find and increase
-		// res.Ip = "" + "/24"
-		// s.KV[req.Id] = *res
-		// Calculate ip whitin the same subnet
 
 		if MaxCIDR == "" {
 			MaxCIDR = s.Cidr
@@ -115,7 +111,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	}).Info("RPC - Client requested data")
 
 	// vip/mask -> vip/32
-	route.RouteTable.AddByString(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
+	route.Route.Add(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
 	mu.Unlock()
 	return nil
 }

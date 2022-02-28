@@ -136,10 +136,9 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 							tun.RefreshRoute(message.Subnets)
 							for _, subnet := range message.Subnets {
 								// Add will override the exist one
-								route.RouteTable.AddByString(strings.TrimSpace(subnet), message.Id)
+								route.Route.Add(strings.TrimSpace(subnet), message.Id)
 							}
 						} else if message.MessageType == MessageTypeOnline {
-							// route.RouteTable.AddByString(strings.Split(message.Vip, "/")[0]+"/32", message.Id)
 							// refresh clients
 							if viper.GetUint("mode") == 1 {
 								// server
@@ -158,7 +157,7 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 											"ID":     r.Id,
 											"Subnet": r.Subnets,
 										}).Info("Refresh local vip table")
-										route.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+										route.Route.Add(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
 										if r.Id != host.ID().Pretty() {
 											subnets = append(subnets, r.Subnets...)
 										}
@@ -171,7 +170,7 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 
 							}
 						} else if message.MessageType == MessageTypeOffline {
-							route.RouteTable.DeleteByString(strings.Split(message.Vip, "/")[0] + "/32")
+							route.Route.Remove(strings.Split(message.Vip, "/")[0] + "/32")
 						}
 					}
 				} else {
@@ -227,7 +226,7 @@ func (p *Publisher) Publish(peerId string, vip string, subnets []string) {
 
 func ForwardPacket(host host.Host, zone string, packets []byte, vipNet *net.IPNet) {
 	dst := waterutil.IPv4Destination(packets)
-	if peerId, found, err := route.RouteTable.GetByString(dst.String()); err == nil && found {
+	if peerId, found, err := route.Route.Get(dst.String()); err == nil && found {
 		if stream, ok := Streams[peerId.(string)]; ok {
 			binary.Write(stream, binary.LittleEndian, uint16(len(packets)))
 			if n, err := stream.Write(packets); n != len(packets) || err != nil {

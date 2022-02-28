@@ -20,5 +20,35 @@ import (
 )
 
 var (
-	RouteTable = iptree.New()
+	Route = RouteTable{
+		tree: iptree.New(),
+	}
 )
+
+type RouteTable struct {
+	tree *iptree.IPTree
+}
+
+// subnet - 192.168.1.0/24
+// peerId - P2P node ID
+func (r *RouteTable) Refresh(subnet string, peerId string) {
+	r.Remove(subnet)
+	r.Add(subnet, peerId)
+}
+
+func (r *RouteTable) Remove(subnet string) {
+	r.tree.DeleteByString(subnet)
+}
+
+func (r *RouteTable) Add(subnet string, peerId string) {
+	r.tree.AddByString(subnet, peerId)
+}
+
+func (r *RouteTable) Get(ip string) (interface{}, bool, error) {
+	return r.tree.GetByString(ip)
+}
+
+func (r *RouteTable) Clean() {
+	// TODO:
+	r.tree = iptree.New()
+}

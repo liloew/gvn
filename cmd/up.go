@@ -151,7 +151,7 @@ func upCommand(cmd *cobra.Command) {
 								"ID":     r.Id,
 								"Subnet": r.Subnets,
 							}).Info("Refresh local vip table")
-							route.RouteTable.AddByString(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+							route.Route.Add(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
 							if r.Id != host.ID().Pretty() {
 								subnets = append(subnets, r.Subnets...)
 							}
