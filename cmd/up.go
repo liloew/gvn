@@ -40,14 +40,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-// upCmd represents the up command
 var (
 	upCmd = &cobra.Command{
 		Use:   "up",
 		Short: "run gvn",
 		Long:  `Run gvn using the configure file (gvn.yaml)`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("up called")
 			upCommand(cmd)
 		},
 	}
@@ -102,7 +100,7 @@ func upCommand(cmd *cobra.Command) {
 		for _, addr := range host.Addrs() {
 			bootstraps = append(bootstraps, fmt.Sprintf("%s/p2p/%s", addr.String(), host.ID().Pretty()))
 		}
-		dhcp.NewRPCServer(host, rpcZone, viper.GetString("dev.vip"), viper.GetInt("dev.mtu"))
+		dhcp.NewRPCServer(host, rpcZone, viper.GetString("dev.vip"), viper.GetInt("dev.mtu"), viper.GetStringSlice("dev.subnets"))
 		// auto config in server mode
 		devChan <- tun.Device{
 			Name: viper.GetString("dev.name"),
@@ -139,41 +137,30 @@ func upCommand(cmd *cobra.Command) {
 					ServerVIP: res.ServerVIP,
 					Port:      viper.GetUint("port"),
 				}
-
-			}
-			var ress []dhcp.Response
-			if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
-				// subnets := make([]string, 0)
-				for _, r := range ress {
-					logrus.WithFields(logrus.Fields{
-						"VIP":    r.Ip,
-						"ID":     r.Id,
-						"Subnet": r.Subnets,
-					}).Info("Refresh local vip table")
-					// route.Route.Add(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
-					subnet := strings.Split(r.Ip, "/")[0] + "/32"
-					route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: []string{subnet}})
-					if r.Id != host.ID().Pretty() {
-						// does not change route via local ethernet
-						// subnets = append(subnets, r.Subnets...)
-						route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: r.Subnets})
-					}
-				}
-				// logrus.WithFields(logrus.Fields{
-				// 	"subnets": subnets,
-				// }).Info("Refresh subnets")
-				// tun.RefreshRoute(subnets)
-			} else {
-				logrus.WithFields(logrus.Fields{
-					"ERROR": err,
-				}).Error("Request clients error")
 			}
 			ticker := time.NewTicker(INTERVAL * time.Second)
 			for range ticker.C {
-				// TODO: sleep or make sure call after tun.New
-				// refresh local VIP table
+				var ress []dhcp.Response
+				if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
+					for _, r := range ress {
+						logrus.WithFields(logrus.Fields{
+							"VIP":    r.Ip,
+							"ID":     r.Id,
+							"Subnet": r.Subnets,
+						}).Debug("Refresh local vip table")
+						subnet := strings.Split(r.Ip, "/")[0] + "/32"
+						route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: []string{subnet}})
+						if r.Id != host.ID().Pretty() {
+							// does not change route via local ethernet
+							route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: r.Subnets})
+						}
+					}
+				} else {
+					logrus.WithFields(logrus.Fields{
+						"ERROR": err,
+					}).Error("Request clients error")
+				}
 				if err := dhcp.Call("DHCPService", "Ping", req, nil); err != nil {
-					// TODO: log error
 					logrus.WithFields(logrus.Fields{
 						"ERROR": err,
 					}).Error("RPC - Ping error")
@@ -219,10 +206,12 @@ func upCommand(cmd *cobra.Command) {
 	tun.NewTun(mainDev)
 	// avoid create duplicate
 	close(devChan)
-	vip := strings.Split(mainDev.Ip, "/")[0]
-	if pub != nil {
-		pub.Publish(host.ID().Pretty(), vip, config.Dev.Subnets)
-	}
+	/*
+		vip := strings.Split(mainDev.Ip, "/")[0]
+		if pub != nil {
+			pub.Publish(host.ID().Pretty(), vip, config.Dev.Subnets)
+		}
+	*/
 	_, vipNet, err := net.ParseCIDR(mainDev.Ip)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -309,45 +298,3 @@ func readData(stream network.Stream) {
 		}
 	}
 }
-
-/*
-func contains(elems []string, v string) bool {
-	for _, s := range elems {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-// check pre contains pos elements, eg:
-// pre: [1, 3, 5, 6], pos: [1, 2, 3, 4]
-// result should be: [2, 4]
-func contains(left, right []string) []string {
-	sort.Strings(left)
-	sort.Strings(right)
-	tmp := make([]string, 0)
-	for _, item := range right {
-		if !contains(left, item) {
-			tmp = append(tmp, item)
-		}
-	}
-	return tmp
-}
-
-func mins(left, right *[]string) {
-	for _, item := range *right {
-		left = remove(*left, item)
-	}
-}
-
-func remove(items []string, item string) []string {
-    newitems := []string{}
-    for _, i := range items {
-        if i != item {
-            newitems = append(newitems, i)
-        }
-    }
-    return newitems
-}
-*/

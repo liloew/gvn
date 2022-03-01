@@ -126,6 +126,7 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	// route.Route.Add(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
 	subnet := strings.Split(data.Ip, "/")[0] + "/32"
 	route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: data.Id, Subnets: []string{subnet}})
+	route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: req.Id, Subnets: req.Subnets})
 	mu.Unlock()
 	return nil
 }
@@ -165,7 +166,7 @@ func (s *DHCPService) Ping(ctx context.Context, req Request, res *Response) erro
 	return nil
 }
 
-func NewRPCServer(host host.Host, zone string, cidr string, mtu int) {
+func NewRPCServer(host host.Host, zone string, cidr string, mtu int, subnets []string) {
 	server := rpc.NewServer(host, protocol.ID(zone))
 	service := DHCPService{KV: map[string]Response{}, Cidr: cidr, Mtu: mtu}
 	if err := server.Register(&service); err != nil {
@@ -196,6 +197,7 @@ func NewRPCServer(host host.Host, zone string, cidr string, mtu int) {
 		Mtu:       mtu,
 		ServerVIP: cidr,
 		Mode:      1,
+		Subnets:   subnets,
 		LoginTime: time.Now().Unix(),
 		Ttl:       10 * 60, // 10 min
 	}

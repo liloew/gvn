@@ -132,12 +132,11 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 								continue
 							}
 							// TODO: add MASQUERADE if self
-							// tun.RefreshRoute(message.Subnets)
-							for _, subnet := range message.Subnets {
-								// Add will override the exist one
-								// route.Route.Add(strings.TrimSpace(subnet), message.Id)
-								route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: message.Id, Subnets: []string{subnet}})
-							}
+							// for _, subnet := range message.Subnets {
+							// 	// Add will override the exist one
+							// 	route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: message.Id, Subnets: []string{subnet}})
+							// }
+							route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: message.Id, Subnets: message.Subnets})
 						} else if message.MessageType == MessageTypeOnline {
 							// refresh clients
 							if viper.GetUint("mode") == 1 {
@@ -147,7 +146,6 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 								req := dhcp.Request{}
 								var ress []dhcp.Response
 								if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
-									// subnets := make([]string, 0)
 									for _, r := range ress {
 										if r.Id == host.ID().Pretty() {
 											continue
@@ -157,23 +155,16 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 											"ID":     r.Id,
 											"Subnet": r.Subnets,
 										}).Info("Refresh local vip table")
-										// route.Route.Add(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
 										subnet := strings.Split(r.Ip, "/")[0] + "/32"
-										route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: []string{subnet}})
+										route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: []string{subnet}})
 										if r.Id != host.ID().Pretty() {
-											// subnets = append(subnets, r.Subnets...)
-											route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: r.Subnets})
+											route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: r.Subnets})
 										}
 									}
-									// logrus.WithFields(logrus.Fields{
-									// 	"subnets": subnets,
-									// }).Info("Refresh subnets")
-									// tun.RefreshRoute(subnets)
 								}
 
 							}
 						} else if message.MessageType == MessageTypeOffline {
-							// route.Route.Remove(strings.Split(message.Vip, "/")[0] + "/32")
 							subnet := strings.Split(message.Vip, "/")[0] + "/32"
 							route.EventBus.Publish(route.REMOVE_ROUTE_TOPIC, route.RouteEvent{Subnets: []string{subnet}})
 						}
@@ -209,7 +200,10 @@ func (p *Publisher) Publish(peerId string, vip string, subnets []string) {
 		ticker := time.NewTicker(10 * time.Second)
 		go func(tk *time.Ticker) {
 			interval := 10
-			for _ = range tk.C {
+			for range tk.C {
+				logrus.WithFields(logrus.Fields{
+					"Time": tk.C,
+				}).Debug("Publish fired")
 				if err := p.pub.Publish(context.Background(), bytes); err != nil {
 					logrus.WithFields(logrus.Fields{
 						"ERROR":   err,
@@ -220,9 +214,6 @@ func (p *Publisher) Publish(peerId string, vip string, subnets []string) {
 					// half of hour for the longest
 					interval *= 2
 				}
-				logrus.WithFields(logrus.Fields{
-					"Interval": interval,
-				}).Info("")
 				ticker.Reset(time.Duration(interval) * time.Second)
 			}
 		}(ticker)
