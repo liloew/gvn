@@ -26,6 +26,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	INTERVAL = 30
+)
+
 // rootCmd represents the base command when called without any subcommands
 var (
 	rootCmd = &cobra.Command{
@@ -55,6 +59,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.gvn.yaml)")
 	rootCmd.PersistentFlags().BoolP("stdout", "", false, "logs to the stdout")
+	rootCmd.PersistentFlags().BoolP("debug", "", false, "debug log level")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -75,6 +80,9 @@ func initConfig() {
 		logrus.SetOutput(writer)
 	} else {
 		logrus.SetOutput(file)
+	}
+	if debug, _ := rootCmd.Flags().GetBool("debug"); debug {
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	if cfgFile == "" {

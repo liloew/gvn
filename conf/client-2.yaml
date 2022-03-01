@@ -1,5 +1,6 @@
 id: QmZiwVDDPhByWJsk5tJqajnPFjvM15KV1NuasSb9WN3ZJq
 server: "/ip4/172.168.1.134/tcp/6543/p2p/QmSyYjoecj3aQ46TAWSEAmork3CRS51Y2SZCcEsiX8XeAx"
+port: 6543
 dev:
   name: utun4
   mtu: 1420

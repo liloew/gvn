@@ -19,7 +19,7 @@ all:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o target/gvn-Darwin-x86_64 main.go
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o target/gvn-Darwin-aarch64 main.go
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o target/gvn-Windows-x86_64.exe main.go
-	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o target/gvn-Freebsd-x86_64 main.go
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o target/gvn-Freebsd-amd64 main.go
 macOS:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o target/gvn-Darwin-x86_64 main.go
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o target/gvn-Darwin-aarch64 main.go

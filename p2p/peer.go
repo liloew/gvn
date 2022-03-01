@@ -31,7 +31,6 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/liloew/gvn/dhcp"
 	"github.com/liloew/gvn/route"
-	"github.com/liloew/gvn/tun"
 	"github.com/sirupsen/logrus"
 	"github.com/songgao/water/waterutil"
 	"github.com/spf13/viper"
@@ -133,10 +132,11 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 								continue
 							}
 							// TODO: add MASQUERADE if self
-							tun.RefreshRoute(message.Subnets)
+							// tun.RefreshRoute(message.Subnets)
 							for _, subnet := range message.Subnets {
 								// Add will override the exist one
-								route.Route.Add(strings.TrimSpace(subnet), message.Id)
+								// route.Route.Add(strings.TrimSpace(subnet), message.Id)
+								route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: message.Id, Subnets: []string{subnet}})
 							}
 						} else if message.MessageType == MessageTypeOnline {
 							// refresh clients
@@ -147,7 +147,7 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 								req := dhcp.Request{}
 								var ress []dhcp.Response
 								if err := dhcp.Call("DHCPService", "Clients", req, &ress); err == nil {
-									subnets := make([]string, 0)
+									// subnets := make([]string, 0)
 									for _, r := range ress {
 										if r.Id == host.ID().Pretty() {
 											continue
@@ -157,20 +157,25 @@ func NewPubSub(host host.Host, topic string) *Publisher {
 											"ID":     r.Id,
 											"Subnet": r.Subnets,
 										}).Info("Refresh local vip table")
-										route.Route.Add(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+										// route.Route.Add(strings.Split(r.Ip, "/")[0]+"/32", r.Id)
+										subnet := strings.Split(r.Ip, "/")[0] + "/32"
+										route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: []string{subnet}})
 										if r.Id != host.ID().Pretty() {
-											subnets = append(subnets, r.Subnets...)
+											// subnets = append(subnets, r.Subnets...)
+											route.EventBus.Publish(route.REFRESH_ROUTE_TOPIC, route.RouteEvent{Id: r.Id, Subnets: r.Subnets})
 										}
 									}
-									logrus.WithFields(logrus.Fields{
-										"subnets": subnets,
-									}).Info("Refresh subnets")
-									tun.RefreshRoute(subnets)
+									// logrus.WithFields(logrus.Fields{
+									// 	"subnets": subnets,
+									// }).Info("Refresh subnets")
+									// tun.RefreshRoute(subnets)
 								}
 
 							}
 						} else if message.MessageType == MessageTypeOffline {
-							route.Route.Remove(strings.Split(message.Vip, "/")[0] + "/32")
+							// route.Route.Remove(strings.Split(message.Vip, "/")[0] + "/32")
+							subnet := strings.Split(message.Vip, "/")[0] + "/32"
+							route.EventBus.Publish(route.REMOVE_ROUTE_TOPIC, route.RouteEvent{Subnets: []string{subnet}})
 						}
 					}
 				} else {

@@ -36,24 +36,17 @@ var (
 	routingDiscovery *discovery.RoutingDiscovery
 )
 
-// func NewDHT(host host.Host, bootstraps []multiaddr.Multiaddr) *dht.IpfsDHT {
 func NewDHT(host host.Host, zone string, bootstraps []string) *dht.IpfsDHT {
 	ctx := context.Background()
 	addrs := make([]peer.AddrInfo, 0)
 	if len(bootstraps) > 0 {
 		for _, bootstrap := range bootstraps {
-			// ids := strings.Split(bootstrap, "/")
-			// bs := peer.AddrInfo{ID: peer.ID(ids[len(ids)-1]), Addrs: addrs}
 			addr, err := peer.AddrInfoFromString(bootstrap)
 			if err != nil {
 				continue
 			}
 			addrs = append(addrs, *addr)
 		}
-
-		// var options []dht.Option
-		// options = append(options, dht.Mode(dht.ModeServer))
-		// options = append(options, dht.BootstrapPeers(bs))
 
 		dstore := dsync.MutexWrap(ds.NewMapDatastore())
 

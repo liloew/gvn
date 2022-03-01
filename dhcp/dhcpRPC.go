@@ -17,9 +17,11 @@ package dhcp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -44,6 +46,7 @@ type RPC struct {
 
 type Request struct {
 	Id      string
+	Mode    int
 	Name    string
 	Subnets []string
 }
@@ -55,6 +58,9 @@ type Response struct {
 	Mtu       int
 	Subnets   []string
 	ServerVIP string
+	Mode      int
+	Ttl       int64
+	LoginTime int64
 }
 
 type DHCPService struct {
@@ -75,6 +81,9 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 		data.Id = req.Id
 		data.Name = req.Name
 		data.Subnets = req.Subnets
+		data.Mode = req.Mode
+		data.LoginTime = time.Now().Unix()
+		data.Ttl = 10 * 60 // 10 min
 
 		if MaxCIDR == "" {
 			MaxCIDR = s.Cidr
@@ -106,12 +115,17 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 	res.Mtu = data.Mtu
 	res.Subnets = data.Subnets
 	res.ServerVIP = data.ServerVIP
+	res.Mode = data.Mode
+	res.LoginTime = data.LoginTime
+	res.Ttl = data.Ttl
 	logrus.WithFields(logrus.Fields{
 		"res": res,
 	}).Info("RPC - Client requested data")
 
 	// vip/mask -> vip/32
-	route.Route.Add(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
+	// route.Route.Add(strings.Split(data.Ip, "/")[0]+"/32", data.Id)
+	subnet := strings.Split(data.Ip, "/")[0] + "/32"
+	route.EventBus.Publish(route.ADD_ROUTE_TOPIC, route.RouteEvent{Id: data.Id, Subnets: []string{subnet}})
 	mu.Unlock()
 	return nil
 }
@@ -119,15 +133,33 @@ func (s *DHCPService) DHCP(ctx context.Context, req Request, res *Response) erro
 func (s *DHCPService) Clients(ctx context.Context, req Request, res *[]Response) error {
 	mu.Lock()
 	for _, v := range s.KV {
+		if v.Mode != 1 && time.Now().Unix()-v.LoginTime > v.Ttl {
+			continue
+		}
 		r := Response{
 			Id:        v.Id,
 			Name:      v.Name,
 			Ip:        v.Ip,
 			Mtu:       v.Mtu,
+			Mode:      v.Mode,
 			Subnets:   v.Subnets,
 			ServerVIP: v.ServerVIP,
 		}
 		*res = append(*res, r)
+	}
+	mu.Unlock()
+	return nil
+}
+
+func (s *DHCPService) Ping(ctx context.Context, req Request, res *Response) error {
+	mu.Lock()
+	if v, ok := s.KV[req.Id]; ok {
+		v.Ttl = 10 * 60 // 10 min
+		v.LoginTime = time.Now().Unix()
+		s.KV[req.Id] = v
+	} else {
+		mu.Unlock()
+		return errors.New("not found")
 	}
 	mu.Unlock()
 	return nil
@@ -141,6 +173,21 @@ func NewRPCServer(host host.Host, zone string, cidr string, mtu int) {
 			"ERROR": err,
 		}).Panic("RPC - build RPC service error")
 	}
+	// does not clean the zombie client
+	/*
+		go func() {
+			ticker := time.NewTicker(1 * time.Minute)
+			for range ticker.C {
+				for k, v := range service.KV {
+					if time.Now().Unix()-v.LoginTime > v.Ttl {
+						mu.Lock()
+						delete(service.KV, k)
+						mu.Unlock()
+					}
+				}
+			}
+		}()
+	*/
 	// server register
 	mu.Lock()
 	service.KV[host.ID().Pretty()] = Response{
@@ -148,6 +195,9 @@ func NewRPCServer(host host.Host, zone string, cidr string, mtu int) {
 		Ip:        cidr,
 		Mtu:       mtu,
 		ServerVIP: cidr,
+		Mode:      1,
+		LoginTime: time.Now().Unix(),
+		Ttl:       10 * 60, // 10 min
 	}
 	mu.Unlock()
 }
@@ -161,7 +211,7 @@ func NewRPCClient(host host.Host, zone string, server string, req Request) (*rpc
 			if err := client.Call(addr.ID, "DHCPService", "DHCP", req, &res); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"ERROR": err,
-				}).Error("RPC - call RPC serveice error")
+				}).Error("RPC - call DHCP RPC serveice error")
 			}
 			return client, res
 		}
@@ -172,7 +222,11 @@ func NewRPCClient(host host.Host, zone string, server string, req Request) (*rpc
 func Call(svcName string, svcMethod string, req Request, res interface{}) error {
 	if err := client.Call(serverId, svcName, svcMethod, req, &res); err != nil {
 		logrus.WithFields(logrus.Fields{
-			"ERROR": err,
+			"ERROR":     err,
+			"svcName":   svcName,
+			"svcMethod": svcMethod,
+			"req":       req,
+			"res":       res,
 		}).Error("RPC - call RPC serveice error")
 		return err
 	}
