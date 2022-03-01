@@ -50,7 +50,6 @@ var (
 		},
 	}
 	mainDev tun.Device
-	pub     *p2p.Publisher
 )
 
 func init() {
@@ -170,7 +169,6 @@ func upCommand(cmd *cobra.Command) {
 	}
 	// END: DHCP
 	go p2p.FindPeerIdsViaDHT(host, zone)
-	pub = p2p.NewPubSub(host, "route")
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -206,12 +204,6 @@ func upCommand(cmd *cobra.Command) {
 	tun.NewTun(mainDev)
 	// avoid create duplicate
 	close(devChan)
-	/*
-		vip := strings.Split(mainDev.Ip, "/")[0]
-		if pub != nil {
-			pub.Publish(host.ID().Pretty(), vip, config.Dev.Subnets)
-		}
-	*/
 	_, vipNet, err := net.ParseCIDR(mainDev.Ip)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{

@@ -10,7 +10,6 @@ require (
 	github.com/libp2p/go-libp2p-discovery v0.6.0
 	github.com/libp2p/go-libp2p-gorpc v0.1.4
 	github.com/libp2p/go-libp2p-kad-dht v0.15.0
-	github.com/libp2p/go-libp2p-pubsub v0.6.1
 	github.com/liloew/wireguard-go v0.0.0-20220224014633-9cd745e6f114
 	github.com/multiformats/go-multiaddr v0.4.0
 	github.com/sevlyar/go-daemon v0.1.5
