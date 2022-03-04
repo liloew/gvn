@@ -1,4 +1,4 @@
-GVN: Golang implementation VPN, aimed at distributed work envirments.
+GVN: Golang implementation VPN, aimed at distributed work environments.
 ---
 # Build
 ```
